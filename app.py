@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import os
+from streamlit_gsheets import GSheetsConnection
+
 
 # Configuración de la página
 st.set_page_config(page_title="Evaluación Interactiva", page_icon="📝")
@@ -14,19 +16,22 @@ if 'aprobado' not in st.session_state:
     st.session_state.aprobado = False
 
 # Función para guardar en "Excel" (usaremos un CSV para mayor compatibilidad inicial)
+# Nueva función para guardar en Google Sheets
 def guardar_resultados(nombre, puntaje, intentos):
-    archivo = 'resultados_evaluacion.csv'
+    # Creamos la conexión
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    
+    # Leemos los datos actuales
+    df_existente = conn.read(ttl=0) # ttl=0 para que no use caché y lea siempre lo último
+    
+    # Creamos el nuevo registro
     nuevo_dato = pd.DataFrame({'Nombre': [nombre], 'Puntaje': [puntaje], 'Intentos': [intentos]})
     
-    if os.path.exists(archivo):
-        df_existente = pd.read_csv(archivo)
-        df_final = pd.concat([df_existente, nuevo_dato], ignore_index=True)
-    else:
-        df_final = nuevo_dato
-        
-    df_final.to_csv(archivo, index=False)
-    # Si prefieres formato xlsx estricto, puedes usar df_final.to_excel('resultados.xlsx', index=False)
-
+    # Unimos los datos
+    df_final = pd.concat([df_existente, nuevo_dato], ignore_index=True)
+    
+    # Lo subimos de nuevo a la nube
+    conn.update(data=df_final)
 # --- INTERFAZ DE LA APP ---
 
 st.title("📝 Evaluación de Conocimientos")
