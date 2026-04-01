@@ -12,7 +12,16 @@ st.set_page_config(page_title="Capacitación IA", page_icon="🤖")
 
 # Configurar IA de Google
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+model = genai.GenerativeModel(
+    model_name='gemini-1.5-flash',
+    generation_config={
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "top_k": 64,
+        "max_output_tokens": 8192,
+        "response_mime_type": "application/json", # Esto fuerza a la IA a responder en JSON
+    }
+)
 # ==========================================
 # 🧠 LÓGICA DE ESTADO
 # ==========================================
