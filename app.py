@@ -25,8 +25,9 @@ st.markdown("""
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     # Configuración robusta del modelo para evitar el error 'NotFound'
+    # Configuración ultra-compatible para evitar el error 404
     model = genai.GenerativeModel(
-        model_name='gemini-1.5-flash',
+        model_name='models/gemini-1.5-flash-latest', # Añadimos 'models/' al inicio
         generation_config={
             "temperature": 0.7,
             "response_mime_type": "application/json",
