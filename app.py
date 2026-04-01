@@ -12,8 +12,7 @@ st.set_page_config(page_title="Capacitación IA", page_icon="🤖")
 
 # Configurar IA de Google
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
-
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 # ==========================================
 # 🧠 LÓGICA DE ESTADO
 # ==========================================
