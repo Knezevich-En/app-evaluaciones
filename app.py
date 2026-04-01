@@ -2,11 +2,12 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from datetime import datetime
+import pytz # Librería para la zona horaria
 
 # ==========================================
 # 🎨 CONFIGURACIÓN Y ESTILOS
 # ==========================================
-st.set_page_config(page_title="Evaluación Técnica - Feedback Persistente", page_icon="🎓", layout="centered")
+st.set_page_config(page_title="Evaluación Técnica - Ecuador", page_icon="🎓", layout="centered")
 
 st.markdown("""
     <style>
@@ -32,7 +33,7 @@ preguntas_estaticas = [
 ]
 
 # ==========================================
-# ⚙️ ESTADO DE SESIÓN (PERSISTENTE)
+# ⚙️ ESTADO DE SESIÓN
 # ==========================================
 if 'perfil' not in st.session_state: st.session_state.perfil = None
 if 'aprobado' not in st.session_state: st.session_state.aprobado = False
@@ -40,20 +41,30 @@ if 'intento' not in st.session_state: st.session_state.intento = 1
 if 'respuestas_usuario' not in st.session_state: st.session_state.respuestas_usuario = {p['id']: None for p in preguntas_estaticas}
 if 'validar' not in st.session_state: st.session_state.validar = False
 
+# ==========================================
+# 💾 FUNCIÓN DE GUARDADO (HORA ECUADOR)
+# ==========================================
 def guardar_datos(nombre, email, telefono, puntaje, intento):
     try:
+        # Configurar zona horaria de Ecuador
+        zona_horaria = pytz.timezone('America/Guayaquil')
+        hora_ecuador = datetime.now(zona_horaria).strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Conexión explícita usando la URL de las Secrets
         conn = st.connection("gsheets", type=GSheetsConnection)
-        df_existente = conn.read(ttl=0)
+        df_existente = conn.read(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], ttl=0)
+        
         nuevo_registro = pd.DataFrame({
             'Nombre': [nombre], 'Correo': [email], 'Teléfono': [telefono],
             'Puntaje': [f"{puntaje}/10"], 'Intento': [intento],
-            'Fecha': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+            'Fecha': [hora_ecuador]
         })
+        
         df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
-        conn.update(data=df_final)
+        conn.update(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], data=df_final)
         return True
     except Exception as e:
-        st.error(f"Error de Excel: {e}")
+        st.error(f"Error al guardar: {e}")
         return False
 
 # ==========================================
@@ -76,15 +87,11 @@ if st.session_state.perfil is None:
 elif not st.session_state.aprobado:
     st.info(f"👤 **{st.session_state.perfil['n']}** | 🔄 Intento: **{st.session_state.intento}**")
     
-    # LISTADO DE PREGUNTAS (Sin Formulario para feedback real-time)
-    puntos_actuales = 0
     for p in preguntas_estaticas:
         st.markdown(f"### {p['pregunta']}")
-        
         with st.expander("💡 Ver Pista"):
             st.markdown(f'<div class="pista-style">{p["pista"]}</div>', unsafe_allow_html=True)
         
-        # El valor se sincroniza con el estado de sesión para que no se borre
         opcion_elegida = st.radio(
             "Selecciona:", 
             p['opciones'], 
@@ -94,16 +101,14 @@ elif not st.session_state.aprobado:
         )
         st.session_state.respuestas_usuario[p['id']] = opcion_elegida
         
-        # Feedback visual si el usuario ya presionó enviar una vez
         if st.session_state.validar:
             if opcion_elegida == p['correcta']:
                 st.success("✅ ¡Correcto!")
-                puntos_actuales += 1
             elif opcion_elegida is not None:
                 st.error("❌ Incorrecto. Revisa tu respuesta.")
         st.write("---")
 
-    if st.button("🚀 Finalizar y Guardar", use_container_width=True):
+    if st.button("🚀 Finalizar y Guardar Resultados", use_container_width=True):
         respuestas = st.session_state.respuestas_usuario
         if None in respuestas.values():
             st.warning("⚠️ Responde todas las preguntas.")
@@ -111,19 +116,19 @@ elif not st.session_state.aprobado:
             puntos_finales = sum(1 for p in preguntas_estaticas if respuestas[p['id']] == p['correcta'])
             
             if puntos_finales == 10:
-                with st.spinner("Guardando en la base de datos..."):
+                with st.spinner("Guardando..."):
                     if guardar_datos(st.session_state.perfil['n'], st.session_state.perfil['e'], st.session_state.perfil['t'], puntos_finales, st.session_state.intento):
                         st.session_state.aprobado = True
                         st.rerun()
             else:
                 st.session_state.validar = True
                 st.session_state.intento += 1
-                st.error(f"Puntaje: {puntos_finales}/10. Tienes errores. Las respuestas correctas se mantienen en verde, corrige las rojas.")
+                st.error(f"Puntaje: {puntos_finales}/10. Corrige los errores en rojo.")
                 st.rerun()
 
 else:
     st.success("🎊 ¡Felicidades! Aprobaste con 10/10.")
     st.balloons()
-    if st.button("Reiniciar para nuevo usuario", use_container_width=True):
+    if st.button("Finalizar y limpiar para nuevo usuario", use_container_width=True):
         for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
