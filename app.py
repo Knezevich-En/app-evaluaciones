@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
+from datetime import datetime
 
 # ==========================================
 # 🎨 CONFIGURACIÓN Y ESTILOS
@@ -9,10 +10,9 @@ st.set_page_config(page_title="Evaluación Técnica Pro", page_icon="🎓", layo
 
 st.markdown("""
     <style>
-    .stRadio > label { font-weight: bold; font-size: 1.1rem; color: #1E3A8A; }
-    .stAlert { border-radius: 12px; }
-    /* Estilo para que la pista sea visible y clara */
-    .pista-style { background-color: #E0F2FE; padding: 10px; border-radius: 8px; color: #0369A1; font-weight: 500; border-left: 5px solid #0EA5E9; }
+    .stRadio > label { font-weight: bold; font-size: 1.1rem; color: #1E3A8A; margin-bottom: 5px; }
+    .pista-style { background-color: #E0F2FE; padding: 15px; border-radius: 10px; color: #0369A1; font-weight: 500; border-left: 5px solid #0EA5E9; margin-bottom: 10px; }
+    .resultado-box { padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #ddd; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -33,89 +33,119 @@ preguntas_estaticas = [
 ]
 
 # ==========================================
-# ⚙️ LÓGICA
+# ⚙️ INICIALIZACIÓN DE ESTADO
 # ==========================================
 if 'perfil' not in st.session_state: st.session_state.perfil = None
 if 'aprobado' not in st.session_state: st.session_state.aprobado = False
 if 'intento' not in st.session_state: st.session_state.intento = 1
-if 'mostrar_resultados' not in st.session_state: st.session_state.mostrar_resultados = False
+if 'respuestas_usuario' not in st.session_state: st.session_state.respuestas_usuario = {}
+if 'validar' not in st.session_state: st.session_state.validar = False
 
+# ==========================================
+# 💾 FUNCIÓN DE GUARDADO (CON DEBUG)
+# ==========================================
 def guardar_datos(nombre, email, telefono, puntaje, intento):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_existente = conn.read(ttl=0)
-        nuevo = pd.DataFrame({
-            'Nombre': [nombre], 'Correo': [email], 'Teléfono': [telefono],
-            'Puntaje': [f"{puntaje}/10"], 'Intento': [intento],
-            'Fecha': [pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")]
+        
+        nuevo_registro = pd.DataFrame({
+            'Nombre': [nombre],
+            'Correo': [email],
+            'Teléfono': [telefono],
+            'Puntaje': [f"{puntaje}/10"],
+            'Intento': [intento],
+            'Fecha': [datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
         })
-        df_final = pd.concat([df_existente, nuevo], ignore_index=True)
+        
+        df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
         conn.update(data=df_final)
         return True
-    except: return False
+    except Exception as e:
+        st.error(f"❌ Error al conectar con Google Sheets: {e}")
+        return False
 
 # ==========================================
 # 🖥️ INTERFAZ
 # ==========================================
 st.title("🎓 Evaluación de Capacitación")
 
-# REGISTRO
+# --- 1. REGISTRO ---
 if st.session_state.perfil is None:
-    with st.container(border=True):
-        st.subheader("📝 Registro de Datos")
-        n = st.text_input("Nombre:")
-        e = st.text_input("Correo:")
-        t = st.text_input("Teléfono:")
-        if st.button("Empezar Test", use_container_width=True):
+    with st.form("registro_form"):
+        st.subheader("📝 Datos del Participante")
+        n = st.text_input("Nombre y Apellido:")
+        e = st.text_input("Correo Electrónico:")
+        t = st.text_input("Teléfono / WhatsApp:")
+        if st.form_submit_button("Empezar Evaluación", use_container_width=True):
             if n and e and t:
                 st.session_state.perfil = {"n": n, "e": e, "t": t}
                 st.rerun()
-            else: st.warning("Completa los campos.")
-
-# CUESTIONARIO
-elif not st.session_state.aprobado:
-    st.info(f"👤 {st.session_state.perfil['n']} | Intento: {st.session_state.intento}")
-    
-    with st.form("quiz"):
-        respuestas = {}
-        for p in preguntas_estaticas:
-            st.markdown(f"### {p['pregunta']}")
-            
-            # PISTA CORREGIDA (Visible por defecto en expander)
-            with st.expander("💡 Toca aquí para ver la pista"):
-                st.markdown(f'<div class="pista-style">{p["pista"]}</div>', unsafe_allow_html=True)
-            
-            respuestas[p['id']] = st.radio("Elige una:", p['opciones'], index=None, key=f"q{p['id']}", label_visibility="collapsed")
-            
-            # ANIMACIÓN VERDE / ROJO (Solo se muestra tras enviar si falló)
-            if st.session_state.mostrar_resultados:
-                if respuestas[p['id']] == p['correcta']:
-                    st.success("✅ ¡Correcta!")
-                elif respuestas[p['id']] is not None:
-                    st.error(f"❌ Incorrecta. La respuesta era: {p['correcta']}")
-            st.write("---")
-
-        if st.form_submit_button("Finalizar Evaluación", use_container_width=True):
-            if None in respuestas.values():
-                st.warning("Responde todas.")
             else:
-                puntos = sum(1 for p in preguntas_estaticas if respuestas[p['id']] == p['correcta'])
-                if puntos == 10:
-                    if guardar_datos(st.session_state.perfil['n'], st.session_state.perfil['e'], st.session_state.perfil['t'], puntos, st.session_state.intento):
+                st.warning("⚠️ Completa todos los campos.")
+
+# --- 2. CUESTIONARIO ---
+elif not st.session_state.aprobado:
+    st.info(f"👤 **{st.session_state.perfil['n']}** | 🔄 Intento: **{st.session_state.intento}**")
+    
+    # Renderizar preguntas fuera de un Form para mejor respuesta visual
+    for p in preguntas_estaticas:
+        st.markdown(f"### {p['pregunta']}")
+        
+        with st.expander("💡 Ver Pista"):
+            st.markdown(f'<div class="pista-style">{p["pista"]}</div>', unsafe_allow_html=True)
+        
+        # Guardamos la selección en el session_state directamente
+        st.session_state.respuestas_usuario[p['id']] = st.radio(
+            "Selecciona:", p['opciones'], 
+            index=None, 
+            key=f"radio_{p['id']}_{st.session_state.intento}",
+            label_visibility="collapsed"
+        )
+        
+        # Si el usuario ya intentó enviar y falló, mostramos feedback
+        if st.session_state.validar:
+            if st.session_state.respuestas_usuario[p['id']] == p['correcta']:
+                st.success("✅ ¡Correcto!")
+            else:
+                st.error(f"❌ Incorrecto. La respuesta es: {p['correcta']}")
+        st.write("---")
+
+    # Botón de envío fuera de un st.form para evitar problemas de refresco
+    if st.button("🚀 Finalizar y Guardar Resultados", use_container_width=True):
+        # Verificar si todas están respondidas
+        respuestas = st.session_state.respuestas_usuario
+        if len(respuestas) < 10 or None in respuestas.values():
+            st.warning("⚠️ Por favor, responde todas las preguntas antes de finalizar.")
+        else:
+            puntos = sum(1 for p in preguntas_estaticas if respuestas.get(p['id']) == p['correcta'])
+            
+            if puntos == 10:
+                with st.spinner("Guardando en la base de datos..."):
+                    exito = guardar_datos(
+                        st.session_state.perfil['n'], 
+                        st.session_state.perfil['e'], 
+                        st.session_state.perfil['t'], 
+                        puntos, 
+                        st.session_state.intento
+                    )
+                    if exito:
                         st.session_state.aprobado = True
                         st.rerun()
-                else:
-                    st.session_state.mostrar_resultados = True
-                    st.error(f"Puntaje: {puntos}/10. Revisa tus errores marcados en rojo arriba.")
-                    st.session_state.intento += 1
+            else:
+                st.session_state.validar = True
+                st.error(f"Puntaje: {puntos}/10. Revisa los errores marcados arriba e inténtalo de nuevo.")
+                st.session_state.intento += 1
+                st.rerun()
 
-# ÉXITO
+# --- 3. ÉXITO ---
 else:
-    st.success(f"🎊 ¡Felicidades {st.session_state.perfil['n']}! Aprobaste con 10/10.")
+    st.success("🎊 ¡Felicidades! Has aprobado con puntaje perfecto.")
     st.balloons()
-    if st.button("Reiniciar Test para nuevo usuario", use_container_width=True):
+    if st.button("Reiniciar para nuevo usuario", use_container_width=True):
         st.session_state.perfil = None
         st.session_state.aprobado = False
         st.session_state.intento = 1
-        st.session_state.mostrar_resultados = False
+        st.session_state.respuestas_usuario = {}
+        st.session_state.validar = False
         st.rerun()
