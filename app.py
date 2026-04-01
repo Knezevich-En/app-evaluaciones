@@ -7,43 +7,33 @@ from pptx import Presentation
 import json
 
 # ==========================================
-# 🎨 CONFIGURACIÓN Y ESTILOS VISUALES
+# 🎨 CONFIGURACIÓN Y ESTILOS
 # ==========================================
-st.set_page_config(page_title="Capacitación Inteligente", page_icon="🤖", layout="centered")
+st.set_page_config(page_title="Capacitación IA - Arturo", page_icon="🤖", layout="centered")
 
+# Estilos para que se vea profesional
 st.markdown("""
     <style>
-    .stRadio > label { font-weight: bold; font-size: 1.1rem; color: #1E3A8A; }
-    .stAlert { border-radius: 12px; }
-    div[data-testid="stExpander"] { border: 1px solid #D1D5DB; border-radius: 10px; background-color: #F9FAFB; }
+    .stRadio > label { font-weight: bold; color: #1E3A8A; font-size: 1.1rem; }
+    div[data-testid="stExpander"] { border: 1px solid #D1D5DB; border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
+
 # ==========================================
-# 🧠 CONFIGURACIÓN DE IA (MÁXIMA COMPATIBILIDAD)
+# 🧠 CONFIGURACIÓN DE IA (SINTAXIS ESTABLE)
 # ==========================================
 try:
+    # Usamos la configuración más simple para evitar el error 404
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    
-    # Forzamos el uso de la versión estable v1 para evitar el error 404
-    model = genai.GenerativeModel(
-        model_name='gemini-1.5-flash',
-        generation_config={
-            "temperature": 0.7,
-            "response_mime_type": "application/json",
-        }
-    )
-    # Este comando extra asegura que usemos la dirección correcta
-    model._client_options = {"api_version": "v1"} 
-    
+    model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
-    st.error(f"⚠️ Error en la configuración: {e}")
-    
+    st.error(f"⚠️ Error de API: {e}")
 
 # ==========================================
-# ⚙️ FUNCIONES DE PROCESAMIENTO
+# ⚙️ FUNCIONES DE APOYO
 # ==========================================
 
-def extraer_texto_archivo(archivo):
+def extraer_texto(archivo):
     texto = ""
     if archivo.name.endswith('.pdf'):
         reader = PdfReader(archivo)
@@ -57,22 +47,24 @@ def extraer_texto_archivo(archivo):
                     texto += shape.text + " "
     return texto
 
-def generar_preguntas_ia(texto_material):
+def generar_preguntas(texto_base):
+    # Prompt optimizado para recibir JSON puro
     prompt = f"""
-    Basado en este contenido de capacitación: {texto_material[:15000]}
-    Genera 10 preguntas de opción múltiple. 
-    Responde ÚNICAMENTE en formato JSON (una lista de objetos).
-    Cada objeto debe tener: "id", "pregunta", "opciones" (lista de 3), "correcta" (texto exacto de la opción) y "pista".
-    Asegúrate de que las preguntas sean profesionales y desafiantes.
+    Genera un examen de 10 preguntas de opción múltiple basado en este texto: {texto_base[:15000]}
+    Responde UNICAMENTE en formato JSON plano (lista de objetos). 
+    No incluyas markdown, ni la palabra 'json'.
+    Formato: [{{"id":1, "pregunta":"...", "opciones":["A","B","C"], "correcta":"A", "pista":"..."}}]
     """
     try:
         response = model.generate_content(prompt)
-        return json.loads(response.text)
+        # Limpiamos posibles etiquetas de markdown que la IA a veces agrega
+        clean_text = response.text.replace('```json', '').replace('```', '').strip()
+        return json.loads(clean_text)
     except Exception as e:
-        st.error(f"Error al generar preguntas: {e}")
+        st.error(f"Error al procesar la respuesta de la IA: {e}")
         return None
 
-def guardar_resultado_final(nombre, puntaje, intento):
+def guardar_datos(nombre, puntaje, intento):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_existente = conn.read(ttl=0)
@@ -85,95 +77,74 @@ def guardar_resultado_final(nombre, puntaje, intento):
         df_final = pd.concat([df_existente, nuevo], ignore_index=True)
         conn.update(data=df_final)
         return True
-    except Exception as e:
-        st.error(f"Error al guardar en Google Sheets: {e}")
-        return False
+    except: return False
 
 # ==========================================
-# 🖥️ FLUJO DE LA APLICACIÓN (UI)
+# 🖥️ INTERFAZ DE USUARIO (UI)
 # ==========================================
 
-# Variables de Control en la Sesión
-if 'preguntas_ia' not in st.session_state: st.session_state.preguntas_ia = None
-if 'usuario' not in st.session_state: st.session_state.usuario = None
-if 'aprobado' not in st.session_state: st.session_state.aprobado = False
-if 'intento' not in st.session_state: st.session_state.intento = 1
+if 'preguntas' not in st.session_state: st.session_state.preguntas = None
+if 'user' not in st.session_state: st.session_state.user = None
+if 'win' not in st.session_state: st.session_state.win = False
+if 'tries' not in st.session_state: st.session_state.tries = 1
 
-st.title("🎓 Centro de Capacitación IA")
-st.write("Carga tu material (PDF o PPTX) y deja que la IA genere la evaluación.")
+st.title("🎓 Evaluación con IA Generativa")
 
-# --- SECCIÓN ADMINISTRADOR ---
+# BARRA LATERAL PARA EL INSTRUCTOR
 with st.sidebar:
-    st.header("⚙️ Configuración")
-    archivo_subido = st.file_uploader("Subir Material", type=["pdf", "pptx"])
-    if archivo_subido and st.button("🚀 Generar / Actualizar Test"):
-        with st.spinner("Analizando contenido..."):
-            contenido = extraer_texto_archivo(archivo_subido)
-            st.session_state.preguntas_ia = generar_preguntas_ia(contenido)
-            if st.session_state.preguntas_ia:
-                st.success("¡Examen listo con 10 preguntas!")
-                st.session_state.aprobado = False # Resetear por si había uno anterior
+    st.header("⚙️ Panel de Control")
+    doc = st.file_uploader("Cargar Material (PDF/PPTX)", type=["pdf", "pptx"])
+    if doc and st.button("Generar Examen"):
+        with st.spinner("La IA está leyendo el documento..."):
+            txt = extraer_texto(doc)
+            st.session_state.preguntas = generar_preguntas(txt)
+            if st.session_state.preguntas:
+                st.success("¡Examen de 10 preguntas listo!")
+                st.session_state.win = False
 
-# --- SECCIÓN ESTUDIANTE ---
-if st.session_state.preguntas_ia:
-    if st.session_state.usuario is None:
-        st.subheader("👋 ¡Bienvenido!")
-        nombre_input = st.text_input("Ingresa tu Nombre para comenzar:")
-        if st.button("Empezar Evaluación") and nombre_input:
-            st.session_state.usuario = nombre_input
+# CUERPO PRINCIPAL
+if st.session_state.preguntas:
+    if st.session_state.user is None:
+        name = st.text_input("Ingresa tu Nombre para empezar:")
+        if st.button("Iniciar") and name:
+            st.session_state.user = name
             st.rerun()
 
-    elif not st.session_state.aprobado:
-        st.info(f"👤 **Evaluado:** {st.session_state.usuario}  |  🔄 **Intento:** {st.session_state.intento}")
+    elif not st.session_state.win:
+        st.info(f"👤 Estudiante: {st.session_state.user} | 🔄 Intento: {st.session_state.tries}")
         
-        # Formulario del Test
-        with st.form("evaluacion_ia"):
-            respuestas_form = {}
-            
-            for p in st.session_state.preguntas_ia:
-                st.markdown(f"### {p['pregunta']}")
-                
-                # Pista interactiva (Toque Profesional)
-                with st.expander(f"¿Necesitas una pista? 💡"):
+        with st.form("examen_ia"):
+            user_answers = {}
+            for p in st.session_state.preguntas:
+                st.write(f"### {p['pregunta']}")
+                with st.expander("💡 Pista"):
                     st.write(p['pista'])
                 
-                respuestas_form[p['id']] = st.radio(
-                    "Selecciona la respuesta correcta:",
-                    p['opciones'],
-                    index=None,
-                    key=f"preg_{p['id']}",
-                    label_visibility="collapsed"
+                user_answers[p['id']] = st.radio(
+                    "Selecciona:", p['opciones'], index=None, key=f"q{p['id']}", label_visibility="collapsed"
                 )
                 st.write("---")
-
-            enviar = st.form_submit_button("✅ Finalizar Evaluación", use_container_width=True)
-
-            if enviar:
-                # Validar que todas estén respondidas
-                if None in respuestas_form.values():
-                    st.warning("⚠️ Por favor responde todas las preguntas.")
+            
+            if st.form_submit_button("Enviar Evaluación", use_container_width=True):
+                if None in user_answers.values():
+                    st.warning("Responde todas las preguntas.")
                 else:
-                    aciertos = sum(1 for p in st.session_state.preguntas_ia if respuestas_form[p['id']] == p['correcta'])
-                    
-                    if aciertos == 10:
-                        with st.spinner("Registrando aprobación..."):
-                            if guardar_resultado_final(st.session_state.usuario, aciertos, st.session_state.intento):
-                                st.session_state.aprobado = True
-                                st.balloons()
-                                st.rerun()
+                    score = sum(1 for p in st.session_state.preguntas if user_answers[p['id']] == p['correcta'])
+                    if score == 10:
+                        if guardar_datos(st.session_state.user, score, st.session_state.tries):
+                            st.session_state.win = True
+                            st.rerun()
                     else:
-                        st.error(f"Obtuviste {aciertos}/10. Para aprobar necesitas 10/10. ¡Inténtalo de nuevo!")
-                        st.session_state.intento += 1
-
+                        st.error(f"Puntaje: {score}/10. ¡Debes sacar 10 para aprobar!")
+                        st.session_state.tries += 1
 else:
-    st.warning("👈 Por favor, el instructor debe cargar un archivo PDF o PPTX en el menú lateral para generar el test.")
+    st.warning("Esperando que el instructor cargue un archivo en el menú lateral.")
 
-# --- PANTALLA DE ÉXITO ---
-if st.session_state.aprobado:
-    st.success(f"🎊 ¡Felicidades {st.session_state.usuario}! Has aprobado satisfactoriamente.")
+if st.session_state.win:
+    st.success(f"🎊 ¡Felicidades {st.session_state.user}! Has aprobado.")
     st.balloons()
-    if st.button("Evaluar a otro usuario"):
-        st.session_state.usuario = None
-        st.session_state.aprobado = False
-        st.session_state.intento = 1
+    if st.button("Reiniciar"):
+        st.session_state.user = None
+        st.session_state.win = False
+        st.session_state.tries = 1
         st.rerun()
