@@ -2,133 +2,139 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from datetime import datetime
-import pytz # Librería para la zona horaria
+import pytz
 
 # ==========================================
 # 🎨 CONFIGURACIÓN Y ESTILOS
 # ==========================================
-st.set_page_config(page_title="Evaluación Técnica - Ecuador", page_icon="🎓", layout="centered")
+st.set_page_config(page_title="Capacitación Interactiva", page_icon="🎓", layout="centered")
 
 st.markdown("""
     <style>
-    .stRadio > label { font-weight: bold; font-size: 1.1rem; color: #1E3A8A; margin-bottom: 5px; }
-    .pista-style { background-color: #E0F2FE; padding: 15px; border-radius: 10px; color: #0369A1; font-weight: 500; border-left: 5px solid #0EA5E9; margin-bottom: 10px; }
+    .avatar-box { background-color: #F0F9FF; padding: 20px; border-radius: 15px; border-left: 5px solid #0EA5E9; margin-bottom: 20px; font-size: 1.2rem; }
+    .stRadio > label { font-weight: bold; font-size: 1.2rem; color: #1E3A8A; }
+    .footer-info { color: #64748B; font-size: 0.9rem; margin-top: 50px; text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 📚 PREGUNTAS
+# 📚 BANCO DE PREGUNTAS
 # ==========================================
-preguntas_estaticas = [
-    {"id": 1, "pregunta": "1. ¿Qué significa la sigla EPP?", "opciones": ["Equipo de Protección Personal", "Evaluación de Procesos", "Estándar de Prevención"], "correcta": "Equipo de Protección Personal", "pista": "Casco, guantes y botas son ejemplos de esto."},
-    {"id": 2, "pregunta": "2. ¿Qué extintor usar en fuego eléctrico?", "opciones": ["Agua", "CO2 o PQS", "Espuma"], "correcta": "CO2 o PQS", "pista": "El agente no debe ser conductor de electricidad."},
-    {"id": 3, "pregunta": "3. Función principal de un PLC:", "opciones": ["Automatizar procesos", "Navegar por internet", "Diseño gráfico"], "correcta": "Automatizar procesos", "pista": "Es el controlador lógico programable industrial."},
-    {"id": 4, "pregunta": "4. Color de tuberías contra incendios:", "opciones": ["Azul", "Amarillo", "Rojo"], "correcta": "Rojo", "pista": "Color estándar de seguridad para emergencias."},
-    {"id": 5, "pregunta": "5. ¿Qué es Lockout/Tagout?", "opciones": ["Limpieza", "Bloqueo y Etiquetado", "Engrase"], "correcta": "Bloqueo y Etiquetado", "pista": "Procedimiento para evitar arranques accidentales."},
-    {"id": 6, "pregunta": "6. Límite de ruido (8h) sin protección:", "opciones": ["70 dB", "85 dB", "100 dB"], "correcta": "85 dB", "pista": "A partir de este nivel el daño es crónico."},
-    {"id": 7, "pregunta": "7. ¿Qué indica el color AMARILLO?", "opciones": ["Seguridad", "Advertencia / Peligro", "Obligación"], "correcta": "Advertencia / Peligro", "pista": "Se usa para precaución ante riesgos físicos."},
-    {"id": 8, "pregunta": "8. Herramienta para medir tensión:", "opciones": ["Multímetro", "Manómetro", "Tacómetro"], "correcta": "Multímetro", "pista": "Instrumento versátil para electricistas."},
-    {"id": 9, "pregunta": "9. Acción ante derrame químico desconocido:", "opciones": ["Limpiar rápido", "Evacuar el área", "Olerlo"], "correcta": "Evacuar el área", "pista": "Nunca arriesgues tu salud ante lo desconocido."},
-    {"id": 10, "pregunta": "10. Altura mínima de 'Trabajo en Altura':", "opciones": ["1.00 metro", "1.80 metros", "3.00 metros"], "correcta": "1.80 metros", "pista": "Norma oficial para el uso obligatorio de arnés."},
-]
+if 'lista_preguntas' not in st.session_state:
+    st.session_state.lista_preguntas = [
+        {"id": 1, "tipo": "radio", "pregunta": "¿Qué significa EPP?", "opciones": ["Protección Personal", "Procesos Primarios"], "correcta": "Protección Personal", "pista": "Casco y guantes."},
+        {"id": 2, "tipo": "texto", "pregunta": "Escriba la unidad de la Resistencia:", "correcta": "Ohmios", "pista": "Letra Omega."},
+        {"id": 3, "tipo": "radio", "pregunta": "¿Color de tubería contra incendio?", "opciones": ["Verde", "Rojo"], "correcta": "Rojo", "pista": "Emergencia."},
+        {"id": 4, "tipo": "texto", "pregunta": "¿Cómo se llama el bloqueo de seguridad?", "correcta": "Lockout", "pista": "Empieza con L."},
+        # Agrega las otras 6 aquí siguiendo el formato...
+    ]
 
 # ==========================================
-# ⚙️ ESTADO DE SESIÓN
+# ⚙️ VARIABLES DE CONTROL DE FLUJO
 # ==========================================
 if 'perfil' not in st.session_state: st.session_state.perfil = None
+if 'indice_pregunta' not in st.session_state: st.session_state.indice_pregunta = 0
 if 'aprobado' not in st.session_state: st.session_state.aprobado = False
-if 'intento' not in st.session_state: st.session_state.intento = 1
-if 'respuestas_usuario' not in st.session_state: st.session_state.respuestas_usuario = {p['id']: None for p in preguntas_estaticas}
-if 'validar' not in st.session_state: st.session_state.validar = False
+if 'feedback_avatar' not in st.session_state: st.session_state.feedback_avatar = "¡Hola! Soy tu tutor. ¡Empecemos con éxito! 🚀"
+if 'aciertos_totales' not in st.session_state: st.session_state.aciertos_totales = 0
+if 'intentos_totales' not in st.session_state: st.session_state.intentos_totales = 1
 
 # ==========================================
-# 💾 FUNCIÓN DE GUARDADO (HORA ECUADOR)
+# 💾 FUNCIÓN DE GUARDADO
 # ==========================================
-def guardar_datos(nombre, email, telefono, puntaje, intento):
+def guardar_final(nombre, email, telefono, intento):
     try:
-        # Configurar zona horaria de Ecuador
-        zona_horaria = pytz.timezone('America/Guayaquil')
-        hora_ecuador = datetime.now(zona_horaria).strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Conexión explícita usando la URL de las Secrets
+        zona = pytz.timezone('America/Guayaquil')
+        hora = datetime.now(zona).strftime("%Y-%m-%d %H:%M:%S")
         conn = st.connection("gsheets", type=GSheetsConnection)
-        df_existente = conn.read(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], ttl=0)
-        
-        nuevo_registro = pd.DataFrame({
+        df_ex = conn.read(ttl=0)
+        nuevo = pd.DataFrame({
             'Nombre': [nombre], 'Correo': [email], 'Teléfono': [telefono],
-            'Puntaje': [f"{puntaje}/10"], 'Intento': [intento],
-            'Fecha': [hora_ecuador]
+            'Puntaje': ["10/10"], 'Intento': [intento], 'Fecha': [hora]
         })
-        
-        df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
-        conn.update(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], data=df_final)
+        df_f = pd.concat([df_ex, nuevo], ignore_index=True)
+        conn.update(data=df_f)
         return True
     except Exception as e:
-        st.error(f"Error al guardar: {e}")
+        st.error(f"Error: {e}")
         return False
 
 # ==========================================
-# 🖥️ INTERFAZ
+# 🖥️ INTERFAZ DE USUARIO
 # ==========================================
-st.title("🎓 Evaluación de Capacitación")
 
+# 1. REGISTRO
 if st.session_state.perfil is None:
-    with st.form("registro"):
-        st.subheader("📝 Registro de Participante")
-        n = st.text_input("Nombre y Apellido:")
-        e = st.text_input("Correo Electrónico:")
+    st.title("🎓 Registro de Capacitación")
+    with st.form("reg"):
+        n = st.text_input("Nombre:")
+        e = st.text_input("Correo:")
         t = st.text_input("Teléfono:")
-        if st.form_submit_button("Empezar Evaluación", use_container_width=True):
+        if st.form_submit_button("Entrar al Curso"):
             if n and e and t:
                 st.session_state.perfil = {"n": n, "e": e, "t": t}
                 st.rerun()
-            else: st.warning("Completa todos los campos.")
+            else: st.warning("Completa tus datos.")
 
+# 2. EVALUACIÓN PASO A PASO
 elif not st.session_state.aprobado:
-    st.info(f"👤 **{st.session_state.perfil['n']}** | 🔄 Intento: **{st.session_state.intento}**")
+    # Mostramos el AVATAR siempre arriba
+    st.markdown(f'<div class="avatar-box"><b>Tutor Virtual:</b><br>{st.session_state.feedback_avatar}</div>', unsafe_allow_html=True)
     
-    for p in preguntas_estaticas:
-        st.markdown(f"### {p['pregunta']}")
-        with st.expander("💡 Ver Pista"):
-            st.markdown(f'<div class="pista-style">{p["pista"]}</div>', unsafe_allow_html=True)
+    # Obtenemos la pregunta actual de la lista (que puede cambiar de orden)
+    lista = st.session_state.lista_preguntas
+    idx = st.session_state.indice_pregunta
+    
+    if idx < len(lista):
+        p = lista[idx]
+        st.subheader(f"Pregunta {idx + 1} de {len(lista)}")
+        st.progress((idx) / len(lista))
         
-        opcion_elegida = st.radio(
-            "Selecciona:", 
-            p['opciones'], 
-            key=f"p_{p['id']}", 
-            index=p['opciones'].index(st.session_state.respuestas_usuario[p['id']]) if st.session_state.respuestas_usuario[p['id']] in p['opciones'] else None,
-            label_visibility="collapsed"
-        )
-        st.session_state.respuestas_usuario[p['id']] = opcion_elegida
+        st.write(f"### {p['pregunta']}")
+        with st.expander("💡 Ver Pista"): st.info(p['pista'])
         
-        if st.session_state.validar:
-            if opcion_elegida == p['correcta']:
-                st.success("✅ ¡Correcto!")
-            elif opcion_elegida is not None:
-                st.error("❌ Incorrecto. Revisa tu respuesta.")
-        st.write("---")
-
-    if st.button("🚀 Finalizar y Guardar Resultados", use_container_width=True):
-        respuestas = st.session_state.respuestas_usuario
-        if None in respuestas.values():
-            st.warning("⚠️ Responde todas las preguntas.")
+        # Entrada según tipo
+        res_usuario = None
+        if p['tipo'] == "radio":
+            res_usuario = st.radio("Elige:", p['opciones'], index=None, key=f"r_{p['id']}", label_visibility="collapsed")
         else:
-            puntos_finales = sum(1 for p in preguntas_estaticas if respuestas[p['id']] == p['correcta'])
-            
-            if puntos_finales == 10:
-                with st.spinner("Guardando..."):
-                    if guardar_datos(st.session_state.perfil['n'], st.session_state.perfil['e'], st.session_state.perfil['t'], puntos_finales, st.session_state.intento):
-                        st.session_state.aprobado = True
-                        st.rerun()
+            res_usuario = st.text_input("Escribe:", key=f"t_{p['id']}", placeholder="Escribe aquí...").strip()
+
+        # BOTÓN PARA VALIDAR ESTA PREGUNTA
+        if st.button("Comprobar Respuesta 🔍", use_container_width=True):
+            if not res_usuario:
+                st.warning("Escribe o selecciona algo primero.")
             else:
-                st.session_state.validar = True
-                st.session_state.intento += 1
-                st.error(f"Puntaje: {puntos_finales}/10. Corrige los errores en rojo.")
+                es_correcta = str(res_usuario).lower() == str(p['correcta']).lower()
+                
+                if es_correcta:
+                    st.session_state.feedback_avatar = "¡Excelente! Sabía que podías. ¡Vamos a la siguiente! ✨"
+                    st.session_state.aciertos_totales += 1
+                    st.session_state.indice_pregunta += 1
+                    st.success("¡CORRECTO!")
+                    st.rerun()
+                else:
+                    st.session_state.feedback_avatar = "¡Uy! Casi lo tienes, pero fallaste. No te preocupes, la repetiremos al final para que aprendas bien. 🧠"
+                    # MOVER AL FINAL: Quitamos de la posición actual y ponemos al final
+                    pregunta_fallada = st.session_state.lista_preguntas.pop(idx)
+                    st.session_state.lista_preguntas.append(pregunta_fallada)
+                    st.error("INCORRECTO. Pasamos a la siguiente, esta volverá al final.")
+                    # No sumamos al índice porque al hacer pop, la siguiente pregunta ahora ocupa el lugar de la actual
+                    st.rerun()
+    else:
+        # Si llegamos aquí es porque terminamos la lista
+        with st.spinner("¡Has completado todas! Guardando registro..."):
+            if guardar_final(st.session_state.perfil['n'], st.session_state.perfil['e'], st.session_state.perfil['t'], st.session_state.intentos_totales):
+                st.session_state.aprobado = True
                 st.rerun()
 
+# 3. ÉXITO
 else:
-    st.success("🎊 ¡Felicidades! Aprobaste con 10/10.")
     st.balloons()
-    if st.button("Finalizar y limpiar para nuevo usuario", use_container_width=True):
-        for key in list(st.session_state.keys()): del st.session_state[key]
+    st.success(f"¡Felicidades {st.session_state.perfil['n']}! Has superado el reto.")
+    st.markdown(f'<div class="avatar-box"><b>Tutor Virtual:</b><br>¡Increíble trabajo! Has demostrado que dominas el tema perfectamente. 🏆</div>', unsafe_allow_html=True)
+    
+    if st.button("Reiniciar Sistema"):
+        # Limpieza total
+        for k in list(st.session_state.keys()): del st.session_state[k]
         st.rerun()
