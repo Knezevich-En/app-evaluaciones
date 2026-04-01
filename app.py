@@ -5,7 +5,7 @@ from streamlit_gsheets import GSheetsConnection
 # ==========================================
 # 🎨 CONFIGURACIÓN VISUAL
 # ==========================================
-st.set_page_config(page_title="Evaluación Técnica", page_icon="🎓", layout="centered")
+st.set_page_config(page_title="Evaluación Técnica - Registro Extendido", page_icon="🎓", layout="centered")
 
 st.markdown("""
     <style>
@@ -16,7 +16,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 📚 TUS 10 PREGUNTAS (Edita el texto aquí)
+# 📚 BANCO DE PREGUNTAS (MANUAL)
 # ==========================================
 preguntas_estaticas = [
     {"id": 1, "pregunta": "1. ¿Qué significa la sigla EPP?", "opciones": ["Equipo de Protección Personal", "Evaluación de Procesos", "Estándar de Prevención"], "correcta": "Equipo de Protección Personal", "pista": "Elementos como casco y guantes."},
@@ -32,73 +32,105 @@ preguntas_estaticas = [
 ]
 
 # ==========================================
-# ⚙️ FUNCIONES
+# ⚙️ FUNCIONES DE DATOS
 # ==========================================
-def guardar_datos(nombre, puntaje, intento):
+def guardar_datos(nombre, email, telefono, puntaje, intento):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_existente = conn.read(ttl=0)
+        
+        # Nuevo registro con los campos adicionales
         nuevo = pd.DataFrame({
-            'Nombre': [nombre], 
+            'Nombre': [nombre],
+            'Correo': [email],
+            'Teléfono': [telefono],
             'Puntaje': [f"{puntaje}/10"], 
             'Intento': [intento],
             'Fecha': [pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")]
         })
+        
         df_final = pd.concat([df_existente, nuevo], ignore_index=True)
         conn.update(data=df_final)
         return True
-    except: return False
+    except Exception as e:
+        st.error(f"Error al guardar: {e}")
+        return False
 
 # ==========================================
 # 🖥️ INTERFAZ DE USUARIO
 # ==========================================
-if 'user' not in st.session_state: st.session_state.user = None
+if 'perfil' not in st.session_state: st.session_state.perfil = None
 if 'aprobado' not in st.session_state: st.session_state.aprobado = False
 if 'intento' not in st.session_state: st.session_state.intento = 1
 
-st.title("🎓 Evaluación de Capacitación")
+st.title("🎓 Evaluación de Capacitación Profesional")
 
-if st.session_state.user is None:
-    st.subheader("Bienvenido")
-    nombre = st.text_input("Ingresa tu Nombre Completo:")
-    if st.button("Empezar Evaluación") and nombre:
-        st.session_state.user = nombre
-        st.rerun()
+# --- REGISTRO INICIAL ---
+if st.session_state.perfil is None:
+    st.subheader("📝 Registro de Participante")
+    with st.container(border=True):
+        nombre = st.text_input("Nombre y Apellido:")
+        email = st.text_input("Correo Electrónico:")
+        telefono = st.text_input("Número de Teléfono (WhatsApp):")
+        
+        if st.button("Empezar Evaluación", use_container_width=True):
+            if nombre and email and telefono:
+                # Guardamos los tres datos en un diccionario dentro de la sesión
+                st.session_state.perfil = {
+                    "nombre": nombre,
+                    "email": email,
+                    "telefono": telefono
+                }
+                st.rerun()
+            else:
+                st.warning("⚠️ Por favor, completa todos los campos de registro.")
 
+# --- FORMULARIO DE EVALUACIÓN ---
 elif not st.session_state.aprobado:
-    st.info(f"👤 **Evaluado:** {st.session_state.user} | 🔄 **Intento:** {st.session_state.intento}")
+    st.info(f"👤 **Usuario:** {st.session_state.perfil['nombre']}  |  🔄 **Intento:** {st.session_state.intento}")
     
-    with st.form("test_estatico"):
+    with st.form("test_final"):
         respuestas = {}
         for p in preguntas_estaticas:
-            st.markdown(f"### {p['pregunta']}")
-            with st.expander("💡 Pista"):
+            st.markdown(f"#### {p['pregunta']}")
+            with st.expander("💡 Ver Pista"):
                 st.write(p['pista'])
             
             respuestas[p['id']] = st.radio(
-                "Selecciona una opción:", p['opciones'], 
+                "Opciones:", p['opciones'], 
                 index=None, key=f"q{p['id']}", label_visibility="collapsed"
             )
-            st.markdown("---")
+            st.write("---")
         
-        if st.form_submit_button("✅ Finalizar y Enviar", use_container_width=True):
+        if st.form_submit_button("✅ Finalizar y Enviar Resultados", use_container_width=True):
             if None in respuestas.values():
-                st.warning("⚠️ Responde todas las preguntas.")
+                st.warning("⚠️ Debes responder todas las preguntas.")
             else:
                 aciertos = sum(1 for p in preguntas_estaticas if respuestas[p['id']] == p['correcta'])
+                
                 if aciertos == 10:
-                    if guardar_datos(st.session_state.user, aciertos, st.session_state.intento):
+                    exito = guardar_datos(
+                        st.session_state.perfil['nombre'],
+                        st.session_state.perfil['email'],
+                        st.session_state.perfil['telefono'],
+                        aciertos, 
+                        st.session_state.intento
+                    )
+                    if exito:
                         st.session_state.aprobado = True
                         st.rerun()
                 else:
-                    st.error(f"Puntaje: {aciertos}/10. ¡Debes obtener 10/10 para aprobar!")
+                    st.error(f"❌ Puntaje: {aciertos}/10. Recuerda que necesitas 10/10 para aprobar.")
                     st.session_state.intento += 1
 
+# --- PANTALLA DE ÉXITO ---
 else:
-    st.success(f"🎊 ¡Felicidades {st.session_state.user}! Has aprobado.")
+    st.success(f"🎊 ¡Excelente trabajo, {st.session_state.perfil['nombre']}!")
+    st.write(f"Tus resultados han sido enviados al correo **{st.session_state.perfil['email']}** registrados en nuestro sistema.")
     st.balloons()
-    if st.button("Evaluar a otra persona"):
-        st.session_state.user = None
+    
+    if st.button("Evaluar a otro participante"):
+        st.session_state.perfil = None
         st.session_state.aprobado = False
         st.session_state.intento = 1
         st.rerun()
