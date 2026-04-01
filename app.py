@@ -6,7 +6,7 @@ from datetime import datetime
 # ==========================================
 # 🎨 CONFIGURACIÓN Y ESTILOS
 # ==========================================
-st.set_page_config(page_title="Evaluación Técnica - Aprendizaje Activo", page_icon="🎓", layout="centered")
+st.set_page_config(page_title="Evaluación Técnica - Feedback Persistente", page_icon="🎓", layout="centered")
 
 st.markdown("""
     <style>
@@ -32,12 +32,12 @@ preguntas_estaticas = [
 ]
 
 # ==========================================
-# ⚙️ ESTADO DE SESIÓN
+# ⚙️ ESTADO DE SESIÓN (PERSISTENTE)
 # ==========================================
 if 'perfil' not in st.session_state: st.session_state.perfil = None
 if 'aprobado' not in st.session_state: st.session_state.aprobado = False
 if 'intento' not in st.session_state: st.session_state.intento = 1
-if 'respuestas_usuario' not in st.session_state: st.session_state.respuestas_usuario = {}
+if 'respuestas_usuario' not in st.session_state: st.session_state.respuestas_usuario = {p['id']: None for p in preguntas_estaticas}
 if 'validar' not in st.session_state: st.session_state.validar = False
 
 def guardar_datos(nombre, email, telefono, puntaje, intento):
@@ -76,56 +76,54 @@ if st.session_state.perfil is None:
 elif not st.session_state.aprobado:
     st.info(f"👤 **{st.session_state.perfil['n']}** | 🔄 Intento: **{st.session_state.intento}**")
     
-    # Listado de preguntas
+    # LISTADO DE PREGUNTAS (Sin Formulario para feedback real-time)
+    puntos_actuales = 0
     for p in preguntas_estaticas:
         st.markdown(f"### {p['pregunta']}")
         
         with st.expander("💡 Ver Pista"):
             st.markdown(f'<div class="pista-style">{p["pista"]}</div>', unsafe_allow_html=True)
         
-        # Selección de respuesta
-        st.session_state.respuestas_usuario[p['id']] = st.radio(
-            "Selecciona:", p['opciones'], 
-            index=None, 
-            key=f"radio_{p['id']}_{st.session_state.intento}",
+        # El valor se sincroniza con el estado de sesión para que no se borre
+        opcion_elegida = st.radio(
+            "Selecciona:", 
+            p['opciones'], 
+            key=f"p_{p['id']}", 
+            index=p['opciones'].index(st.session_state.respuestas_usuario[p['id']]) if st.session_state.respuestas_usuario[p['id']] in p['opciones'] else None,
             label_visibility="collapsed"
         )
+        st.session_state.respuestas_usuario[p['id']] = opcion_elegida
         
-        # FEEDBACK MODIFICADO: No revela la respuesta correcta
+        # Feedback visual si el usuario ya presionó enviar una vez
         if st.session_state.validar:
-            if st.session_state.respuestas_usuario[p['id']] == p['correcta']:
+            if opcion_elegida == p['correcta']:
                 st.success("✅ ¡Correcto!")
-            elif st.session_state.respuestas_usuario[p['id']] is not None:
-                st.error("❌ Incorrecto. Vuelve a intentarlo.")
+                puntos_actuales += 1
+            elif opcion_elegida is not None:
+                st.error("❌ Incorrecto. Revisa tu respuesta.")
         st.write("---")
 
     if st.button("🚀 Finalizar y Guardar", use_container_width=True):
         respuestas = st.session_state.respuestas_usuario
-        if len(respuestas) < 10 or None in respuestas.values():
+        if None in respuestas.values():
             st.warning("⚠️ Responde todas las preguntas.")
         else:
-            puntos = sum(1 for p in preguntas_estaticas if respuestas.get(p['id']) == p['correcta'])
+            puntos_finales = sum(1 for p in preguntas_estaticas if respuestas[p['id']] == p['correcta'])
             
-            if puntos == 10:
-                with st.spinner("Guardando..."):
-                    if guardar_datos(st.session_state.perfil['n'], st.session_state.perfil['e'], st.session_state.perfil['t'], puntos, st.session_state.intento):
+            if puntos_finales == 10:
+                with st.spinner("Guardando en la base de datos..."):
+                    if guardar_datos(st.session_state.perfil['n'], st.session_state.perfil['e'], st.session_state.perfil['t'], puntos_finales, st.session_state.intento):
                         st.session_state.aprobado = True
                         st.rerun()
             else:
                 st.session_state.validar = True
-                st.error(f"Puntaje: {puntos}/10. Tienes errores. Revisa las preguntas marcadas en rojo e intenta de nuevo.")
                 st.session_state.intento += 1
-                # No hacemos rerun aquí para que el usuario pueda ver sus errores antes de cambiar de intento si lo desea
-                # Pero como las keys de radio dependen del intento, el rerun es necesario para 'limpiar' o 'marcar'
+                st.error(f"Puntaje: {puntos_finales}/10. Tienes errores. Las respuestas correctas se mantienen en verde, corrige las rojas.")
                 st.rerun()
 
 else:
     st.success("🎊 ¡Felicidades! Aprobaste con 10/10.")
     st.balloons()
     if st.button("Reiniciar para nuevo usuario", use_container_width=True):
-        st.session_state.perfil = None
-        st.session_state.aprobado = False
-        st.session_state.intento = 1
-        st.session_state.respuestas_usuario = {}
-        st.session_state.validar = False
+        for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
