@@ -18,23 +18,26 @@ st.markdown("""
     div[data-testid="stExpander"] { border: 1px solid #D1D5DB; border-radius: 10px; background-color: #F9FAFB; }
     </style>
     """, unsafe_allow_html=True)
-
 # ==========================================
-# 🧠 CONFIGURACIÓN DE IA (GEMINI)
+# 🧠 CONFIGURACIÓN DE IA (MÁXIMA COMPATIBILIDAD)
 # ==========================================
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    # Configuración robusta del modelo para evitar el error 'NotFound'
-    # Configuración ultra-compatible para evitar el error 404
+    
+    # Forzamos el uso de la versión estable v1 para evitar el error 404
     model = genai.GenerativeModel(
-        model_name='models/gemini-1.5-flash-latest', # Añadimos 'models/' al inicio
+        model_name='gemini-1.5-flash',
         generation_config={
             "temperature": 0.7,
             "response_mime_type": "application/json",
         }
     )
+    # Este comando extra asegura que usemos la dirección correcta
+    model._client_options = {"api_version": "v1"} 
+    
 except Exception as e:
-    st.error("⚠️ Error en la configuración de la API Key. Revisa tus Secrets.")
+    st.error(f"⚠️ Error en la configuración: {e}")
+    
 
 # ==========================================
 # ⚙️ FUNCIONES DE PROCESAMIENTO
