@@ -4,3 +4,4 @@ st-gsheets-connection
 google-generativeai
 PyPDF2
 python-pptx
+google-generativeai==0.8.3
