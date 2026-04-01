@@ -1,131 +1,119 @@
 import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
+import google.generativeai as genai
+from PyPDF2 import PdfReader
+import json
 
 # ==========================================
-# 🎨 CONFIGURACIÓN DE PÁGINA Y ESTILOS
+# 🎨 CONFIGURACIÓN Y ESTILOS
 # ==========================================
-st.set_page_config(
-    page_title="Evaluación de Capacitación Técnica",
-    page_icon="🎓",
-    layout="centered"
-)
+st.set_page_config(page_title="Capacitación IA", page_icon="🤖")
 
-# Inyectamos un poco de CSS para que las pistas y radios se vean mejor
-st.markdown("""
-    <style>
-    .stRadio > label { font-weight: bold; font-size: 1.05rem; }
-    .stAlert { border-radius: 10px; }
-    div[data-testid="stExpander"] { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 15px; }
-    </style>
-    """, unsafe_allow_html=True)
+# Configurar IA de Google
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 # ==========================================
-# 🧠 LÓGICA DE ESTADO (SESSION STATE)
+# 🧠 LÓGICA DE ESTADO
 # ==========================================
+if 'preguntas_ia' not in st.session_state:
+    st.session_state.preguntas_ia = None
 if 'usuario' not in st.session_state:
     st.session_state.usuario = None
-if 'intento_actual' not in st.session_state:
-    st.session_state.intento_actual = 1
 if 'aprobado' not in st.session_state:
     st.session_state.aprobado = False
-if 'respuestas_usuario' not in st.session_state:
-    st.session_state.respuestas_usuario = {}
+if 'intento' not in st.session_state:
+    st.session_state.intento = 1
 
 # ==========================================
-# 📊 CONEXIÓN A GOOGLE SHEETS
+# 📂 FUNCIÓN: PROCESAR PDF Y GENERAR PREGUNTAS
 # ==========================================
-def guardar_en_nube(nombre, puntaje, intentos):
+def generar_preguntas_con_ia(texto_pdf):
+    prompt = f"""
+    Basado en el siguiente texto de capacitación, genera 10 preguntas de opción múltiple para una evaluación profesional. 
+    Devuelve la respuesta ÚNICAMENTE en formato JSON plano (una lista de objetos).
+    Cada objeto debe tener: "id", "pregunta", "opciones" (lista de 3), "correcta" (el texto exacto) y "pista".
+    Texto: {texto_pdf[:10000]} 
+    """
+    response = model.generate_content(prompt)
+    # Limpiar la respuesta de la IA por si trae marcas de markdown
+    json_clean = response.text.replace('```json', '').replace('```', '').strip()
+    return json.loads(json_clean)
+
+def guardar_datos(nombre, puntaje, intento):
     try:
-        # Se conecta usando las credenciales de 'Secrets'
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_existente = conn.read(ttl=0)
-        
-        nuevo_registro = pd.DataFrame({
-            'Nombre': [nombre], 
-            'Puntaje': [f"{puntaje}/10"], 
-            'Intentos': [intentos]
-        })
-        
-        df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
+        nuevo = pd.DataFrame({'Nombre': [nombre], 'Puntaje': [f"{puntaje}/10"], 'Intento': [intento]})
+        df_final = pd.concat([df_existente, nuevo], ignore_index=True)
         conn.update(data=df_final)
         return True
-    except Exception as e:
-        st.error(f"Error de conexión: {e}")
-        return False
+    except: return False
 
 # ==========================================
-# 📚 CUESTIONARIO PROFESIONAL (10 PREGUNTAS)
+# 🖥️ INTERFAZ
 # ==========================================
-preguntas_reales = [
-    {"id": 1, "pregunta": "1. ¿Qué significa la sigla EPP?", "opciones": ["Equipo de Protección Personal", "Evaluación de Procesos"], "correcta": "Equipo de Protección Personal", "pista": "Elementos como casco y guantes."},
-    {"id": 2, "pregunta": "2. Extintor para fuego eléctrico:", "opciones": ["Agua", "CO2 o PQS"], "correcta": "CO2 o PQS", "pista": "El agente no debe ser conductor de electricidad."},
-    {"id": 3, "pregunta": "3. Función principal de un PLC:", "opciones": ["Automatizar procesos", "Navegar por internet"], "correcta": "Automatizar procesos", "pista": "Es el cerebro de la máquina."},
-    {"id": 4, "pregunta": "4. Color de tuberías contra incendios:", "opciones": ["Azul", "Rojo"], "correcta": "Rojo", "pista": "Color universal de emergencia."},
-    {"id": 5, "pregunta": "5. ¿Qué es Lockout/Tagout?", "opciones": ["Limpieza", "Bloqueo y Etiquetado"], "correcta": "Bloqueo y Etiquetado", "pista": "Evita que alguien encienda la máquina mientras trabajas."},
-    {"id": 6, "pregunta": "6. Límite de ruido (8h) sin protección:", "opciones": ["85 dB", "120 dB"], "correcta": "85 dB", "pista": "A partir de aquí hay riesgo auditivo."},
-    {"id": 7, "pregunta": "7. ¿Qué indica el color AMARILLO?", "opciones": ["Seguridad", "Advertencia"], "correcta": "Advertencia", "pista": "Precaución ante un riesgo."},
-    {"id": 8, "pregunta": "8. Herramienta para medir tensión:", "opciones": ["Multímetro", "Manómetro"], "correcta": "Multímetro", "pista": "Mide Voltios."},
-    {"id": 9, "pregunta": "9. Acción ante derrame químico desconocido:", "opciones": ["Limpiar", "Evacuar el área"], "correcta": "Evacuar el área", "pista": "La seguridad es primero."},
-    {"id": 10, "pregunta": "10. ¿Altura mínima para 'Trabajo en Altura'?", "opciones": ["1.80 metros", "5.00 metros"], "correcta": "1.80 metros", "pista": "Requiere uso de arnés obligatorio."}
-]
+st.title("🎓 Sistema de Evaluación Inteligente")
 
-# ==========================================
-# 🖥️ INTERFAZ DE USUARIO
-# ==========================================
-st.title("🎓 Evaluación Técnica de Capacitación")
-st.markdown("Responde correctamente las 10 preguntas para aprobar.")
+# SECCIÓN ADMINISTRADOR: CARGAR DOCUMENTO
+with st.expander("⚙️ Configuración del Test (Solo Instructor)"):
+    archivo = st.file_uploader("Sube el PDF de la capacitación", type="pdf")
+    if archivo and st.button("Generar nuevo examen con IA"):
+        with st.spinner("La IA está analizando el documento y creando preguntas..."):
+            reader = PdfReader(archivo)
+            texto = ""
+            for page in reader.pages: texto += page.extract_text()
+            st.session_state.preguntas_ia = generar_preguntas_con_ia(texto)
+            st.success("¡Examen generado exitosamente!")
 
-# --- FASE 1: INGRESO ---
-if st.session_state.usuario is None:
-    nombre = st.text_input("Ingresa tu Nombre Completo:")
-    if st.button("Empezar Evaluación"):
-        if nombre:
-            st.session_state.usuario = nombre
-            st.rerun()
-        else: st.warning("Ingresa un nombre.")
-
-# --- FASE 2: EVALUACIÓN ---
-elif not st.session_state.aprobado:
-    col_a, col_b = st.columns(2)
-    col_a.write(f"👤 **Usuario:** {st.session_state.usuario}")
-    col_b.write(f"🔄 **Intento:** {st.session_state.intento_actual}")
+# SECCIÓN USUARIO: EL TEST
+if st.session_state.preguntas_ia:
+    if st.session_state.usuario is None:
+        nombre = st.text_input("Tu Nombre Completo:")
+        if st.button("Empezar"):
+            if nombre: 
+                st.session_state.usuario = nombre
+                st.rerun()
     
-    # Barra de progreso dinámica
-    respondidas = len([v for v in st.session_state.respuestas_usuario.values() if v is not None])
-    st.progress(respondidas / 10)
-
-    with st.form("test"):
-        for p in preguntas_reales:
-            st.write(f"### Pregunta {p['id']}")
-            # Pista interactiva
-            with st.expander("💡 Ver pista"):
-                st.info(p['pista'])
+    elif not st.session_state.aprobado:
+        st.write(f"👤 **{st.session_state.usuario}** | 🔄 Intento: **{st.session_state.intento}**")
+        st.progress(st.session_state.intento / 5 if st.session_state.intento < 5 else 0.9)
+        
+        respuestas = {}
+        with st.form("test_ia"):
+            for p in st.session_state.preguntas_ia:
+                st.markdown(f"#### {p['pregunta']}")
+                with st.expander("💡 Ver pista"):
+                    st.info(p['pista'])
+                
+                respuestas[p['id']] = st.radio(
+                    "Selecciona una opción:", 
+                    p['opciones'], 
+                    index=None, 
+                    key=f"q_{p['id']}"
+                )
+                st.write("---")
             
-            st.session_state.respuestas_usuario[f"p{p['id']}"] = st.radio(
-                p['pregunta'], p['opciones'], index=None, key=f"r{p['id']}", label_visibility="collapsed"
-            )
-            st.markdown("---")
-
-        if st.form_submit_button("Enviar Resultados", use_container_width=True):
-            puntaje = sum(1 for p in preguntas_reales if st.session_state.respuestas_usuario.get(f"p{p['id']}") == p['correcta'])
-            
-            if puntaje == 10:
-                if guardar_en_nube(st.session_state.usuario, puntaje, st.session_state.intento_actual):
-                    st.session_state.aprobado = True
-                    st.balloons()
-                    st.rerun()
-            else:
-                st.error(f"Puntaje: {puntaje}/10. ¡Debes obtener 10/10 para aprobar! Inténtalo de nuevo.")
-                st.session_state.intento_actual += 1
-
-# --- FASE 3: ÉXITO ---
+            if st.form_submit_button("Finalizar Evaluación"):
+                aciertos = sum(1 for p in st.session_state.preguntas_ia if respuestas.get(p['id']) == p['correcta'])
+                
+                if aciertos == 10:
+                    if guardar_datos(st.session_state.usuario, aciertos, st.session_state.intento):
+                        st.session_state.aprobado = True
+                        st.balloons()
+                        st.rerun()
+                else:
+                    st.error(f"Puntaje: {aciertos}/10. ¡Necesitas 10 para aprobar!")
+                    st.session_state.intento += 1
 else:
-    st.success(f"¡Excelente, {st.session_state.usuario}! Has aprobado.")
-    st.write("Tus datos se guardaron en el Excel de la nube.")
-    if st.button("Nueva Evaluación"):
+    st.info("Esperando que el instructor suba el material de capacitación...")
+
+# PANTALLA FINAL
+if st.session_state.aprobado:
+    st.success(f"¡Felicidades {st.session_state.usuario}! Aprobaste en el intento {st.session_state.intento}.")
+    if st.button("Reiniciar"):
         st.session_state.usuario = None
         st.session_state.aprobado = False
-        st.session_state.respuestas_usuario = {}
-        st.session_state.intento_actual = 1
+        st.session_state.intento = 1
         st.rerun()
