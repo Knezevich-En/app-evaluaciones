@@ -3,39 +3,26 @@ import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
 # ==========================================
-# 🎨 CONFIGURACIÓN VISUAL Y DE PÁGINA
+# 🎨 CONFIGURACIÓN DE PÁGINA Y ESTILOS
 # ==========================================
 st.set_page_config(
-    page_title="Centro de Capacitación - Evaluación",
+    page_title="Evaluación de Capacitación Técnica",
     page_icon="🎓",
-    layout="centered" # Mantiene el contenido enfocado en el centro
+    layout="centered"
 )
 
-# --- ESTILOS CSS PERSONALIZADOS (Pequeños trucos visuales) ---
+# Inyectamos un poco de CSS para que las pistas y radios se vean mejor
 st.markdown("""
     <style>
-    /* Estilo para los títulos de las preguntas */
-    .stRadio > label {
-        font-weight: bold;
-        font-size: 1.1rem;
-        color: #31333F;
-        padding-bottom: 10px;
-    }
-    /* Estilo para la caja de info del usuario al inicio */
-    .css-1r6slb0 {
-        background-color: #f0f2f6;
-        padding: 20px;
-        border_radius: 10px;
-    }
+    .stRadio > label { font-weight: bold; font-size: 1.05rem; }
+    .stAlert { border-radius: 10px; }
+    div[data-testid="stExpander"] { border: 1px solid #e6e9ef; border-radius: 8px; margin-bottom: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
-
 # ==========================================
-# 🧠 LÓGICA DE DATOS Y ESTADO
+# 🧠 LÓGICA DE ESTADO (SESSION STATE)
 # ==========================================
-
-# --- Inicializar variables de estado (memoria de la app) ---
 if 'usuario' not in st.session_state:
     st.session_state.usuario = None
 if 'intento_actual' not in st.session_state:
@@ -45,182 +32,100 @@ if 'aprobado' not in st.session_state:
 if 'respuestas_usuario' not in st.session_state:
     st.session_state.respuestas_usuario = {}
 
-# --- Función para guardar en Google Sheets (Usando Secrets seguras) ---
-def guardar_resultados_nube(nombre, puntaje, intentos):
+# ==========================================
+# 📊 CONEXIÓN A GOOGLE SHEETS
+# ==========================================
+def guardar_en_nube(nombre, puntaje, intentos):
     try:
-        # Creamos la conexión (lee automáticamente de [connections.gsheets] en Secrets)
+        # Se conecta usando las credenciales de 'Secrets'
         conn = st.connection("gsheets", type=GSheetsConnection)
-        
-        # Leemos los datos actuales (ttl=0 para garantizar datos frescos)
         df_existente = conn.read(ttl=0)
         
-        # Creamos el nuevo registro
-        nuevo_dato = pd.DataFrame({'Nombre': [nombre], 'Puntaje': [puntaje], 'Intentos': [intentos]})
+        nuevo_registro = pd.DataFrame({
+            'Nombre': [nombre], 
+            'Puntaje': [f"{puntaje}/10"], 
+            'Intentos': [intentos]
+        })
         
-        # Unimos los datos
-        df_final = pd.concat([df_existente, nuevo_dato], ignore_index=True)
-        
-        # Lo subimos de nuevo a la nube
+        df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
         conn.update(data=df_final)
         return True
     except Exception as e:
-        st.error(f"⚠️ Error crítico al guardar en la nube. Por favor avisa al administrador. Error: {e}")
+        st.error(f"Error de conexión: {e}")
         return False
 
-
 # ==========================================
-# 📚 DEFINICIÓN DEL CUESTIONARIO REAL
+# 📚 CUESTIONARIO PROFESIONAL (10 PREGUNTAS)
 # ==========================================
-
-# Aquí irán tus preguntas reales. He creado una estructura fácil de editar.
-# Simplemente copia y pega bloques para agregar más preguntas.
-
 preguntas_reales = [
-    {
-        "id": 1,
-        "pregunta": "1. ¿Cuál es el procedimiento correcto si detecta una anomalía en el sistema de control?",
-        "opciones": ["Ignorarla si es pequeña", "Reportar inmediatamente al supervisor", "Intentar arreglarla sin avisar", "Esperar al cambio de turno"],
-        "correcta": "Reportar inmediatamente al supervisor"
-    },
-    {
-        "id": 2,
-        "pregunta": "2. ¿Verdadero o Falso: El uso de EPP es opcional en la zona de producción?",
-        "opciones": ["Verdadero", "Falso"],
-        "correcta": "Falso"
-    },
-    # --- AGREGA MÁS PREGUNTAS AQUÍ SIGUIENDO EL FORMATO ---
-    # {
-    #     "id": 3,
-    #     "pregunta": "3. ...",
-    #     "opciones": ["...", "..."],
-    #     "correcta": "..."
-    # },
+    {"id": 1, "pregunta": "1. ¿Qué significa la sigla EPP?", "opciones": ["Equipo de Protección Personal", "Evaluación de Procesos"], "correcta": "Equipo de Protección Personal", "pista": "Elementos como casco y guantes."},
+    {"id": 2, "pregunta": "2. Extintor para fuego eléctrico:", "opciones": ["Agua", "CO2 o PQS"], "correcta": "CO2 o PQS", "pista": "El agente no debe ser conductor de electricidad."},
+    {"id": 3, "pregunta": "3. Función principal de un PLC:", "opciones": ["Automatizar procesos", "Navegar por internet"], "correcta": "Automatizar procesos", "pista": "Es el cerebro de la máquina."},
+    {"id": 4, "pregunta": "4. Color de tuberías contra incendios:", "opciones": ["Azul", "Rojo"], "correcta": "Rojo", "pista": "Color universal de emergencia."},
+    {"id": 5, "pregunta": "5. ¿Qué es Lockout/Tagout?", "opciones": ["Limpieza", "Bloqueo y Etiquetado"], "correcta": "Bloqueo y Etiquetado", "pista": "Evita que alguien encienda la máquina mientras trabajas."},
+    {"id": 6, "pregunta": "6. Límite de ruido (8h) sin protección:", "opciones": ["85 dB", "120 dB"], "correcta": "85 dB", "pista": "A partir de aquí hay riesgo auditivo."},
+    {"id": 7, "pregunta": "7. ¿Qué indica el color AMARILLO?", "opciones": ["Seguridad", "Advertencia"], "correcta": "Advertencia", "pista": "Precaución ante un riesgo."},
+    {"id": 8, "pregunta": "8. Herramienta para medir tensión:", "opciones": ["Multímetro", "Manómetro"], "correcta": "Multímetro", "pista": "Mide Voltios."},
+    {"id": 9, "pregunta": "9. Acción ante derrame químico desconocido:", "opciones": ["Limpiar", "Evacuar el área"], "correcta": "Evacuar el área", "pista": "La seguridad es primero."},
+    {"id": 10, "pregunta": "10. ¿Altura mínima para 'Trabajo en Altura'?", "opciones": ["1.80 metros", "5.00 metros"], "correcta": "1.80 metros", "pista": "Requiere uso de arnés obligatorio."}
 ]
 
-# Calculamos el puntaje necesario para aprobar (Ej. 100% o 80%)
-# Para Duolingo, suele ser perfecto, cambiémoslo a perfecto por ahora.
-TOTAL_PREGUNTAS = len(preguntas_reales)
-PUNTAJE_MINIMO = TOTAL_PREGUNTAS 
-
-
 # ==========================================
-# 🖥️ INTERFAZ DE USUARIO (UI)
+# 🖥️ INTERFAZ DE USUARIO
 # ==========================================
+st.title("🎓 Evaluación Técnica de Capacitación")
+st.markdown("Responde correctamente las 10 preguntas para aprobar.")
 
-# --- Cabecera Principal ---
-st.title("🎓 Centro de Evaluación Técnica")
-st.markdown("Bienvenido al módulo de validación de conocimientos. Responde conscientemente.")
-st.markdown("---")
-
-
-# --- Fase 1: Identificación ---
+# --- FASE 1: INGRESO ---
 if st.session_state.usuario is None:
-    # Usamos columnas para centrar el formulario de inicio
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        st.subheader("👋 ¡Hola! Antes de empezar...")
-        nombre_input = st.text_input("Ingresa tu Nombre Completo:", placeholder="Ej. Juan Pérez")
-        
-        # Botón moderno
-        if st.button("Comenzar Evaluación 🚀", use_container_width=True):
-            if nombre_input:
-                st.session_state.usuario = nombre_input
-                st.rerun()
-            else:
-                st.warning("⚠️ Por favor, ingresa tu nombre para continuar.")
-
-# --- Fase 2: Evaluación Activa ---
-elif not st.session_state.aprobado:
-    
-    # 🌟 MEJORA VISUAL: Cabecera de usuario moderna
-    st.markdown("### Datos de la Evaluación")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("👤 Evaluado", st.session_state.usuario)
-    c2.metric("🔄 Intento", st.session_state.intento_actual)
-    c3.metric("🎯 Meta", f"{PUNTAJE_MINIMO}/{TOTAL_PREGUNTAS}")
-    
-    st.markdown("---")
-
-    # 🌟 MEJORA VISUAL: Barra de Progreso (Tipo Duolingo)
-    # Calculamos cuántas preguntas ha respondido ya
-    respondidas = len(st.session_state.respuestas_usuario)
-    progreso = respondidas / TOTAL_PREGUNTAS if TOTAL_PREGUNTAS > 0 else 0
-    st.write(f"Tu progreso: {respondidas} de {TOTAL_PREGUNTAS} preguntas.")
-    st.progress(progreso)
-    st.markdown("<br>", unsafe_allow_html=True) # Espacio en blanco
-
-    # --- Creación dinámica del formulario de preguntas ---
-    with st.form("evaluacion_form"):
-        st.subheader("📝 Cuestionario")
-        
-        # Iteramos sobre la lista de preguntas reales
-        for p in preguntas_reales:
-            # Usamos st.radio para selección única moderna
-            # Guardamos la respuesta directamente en st.session_state.respuestas_usuario
-            key_pregunta = f"p_{p['id']}"
-            st.session_state.respuestas_usuario[key_pregunta] = st.radio(
-                p["pregunta"],
-                p["opciones"],
-                index=None, # Inicia sin selección para obligar a elegir
-                key=key_pregunta
-            )
-            st.markdown("<br>", unsafe_allow_html=True) # Espacio entre preguntas
-
-        st.markdown("---")
-        # Botón de envío grande y centrado
-        enviar_btn = st.form_submit_button("✅ Finalizar y Enviar Respuestas", use_container_width=True)
-        
-        if enviar_btn:
-            # LÓGICA DE EVALUACIÓN
-            # Verificamos si respondieron todas
-            if None in st.session_state.respuestas_usuario.values() or len(st.session_state.respuestas_usuario) < TOTAL_PREGUNTAS:
-                st.warning("⚠️ Por favor, responde todas las preguntas antes de enviar.")
-            else:
-                # Calcular puntaje final
-                puntaje_final = 0
-                for p in preguntas_reales:
-                    key_p = f"p_{p['id']}"
-                    if st.session_state.respuestas_usuario[key_p] == p["correcta"]:
-                        puntaje_final += 1
-                
-                # LÓGICA DE APROBACIÓN (TIPO DUOLINGO: Retintentos)
-                if puntaje_final >= PUNTAJE_MINIMO:
-                    # 🥳 ¡APROBADO! Guardamos en la nube
-                    with st.spinner("Guardando tus resultados exitosos en la base de datos..."):
-                        exito_guardado = guardar_resultados_nube(st.session_state.usuario, puntaje_final, st.session_state.intento_actual)
-                    
-                    if exito_guardado:
-                        st.session_state.aprobado = True
-                        st.balloons() # Animación Duolingo style
-                        st.rerun()
-                else:
-                    # 😥 REPROBADO: Forzar reintento
-                    st.error(f"❌ Obtuviste {puntaje_final}/{TOTAL_PREGUNTAS}. Necesitas puntaje perfecto ({PUNTAJE_MINIMO}/{TOTAL_PREGUNTAS}) para aprobar.")
-                    st.markdown("### 🔄 ¡No te rindas!")
-                    st.info("Revisa tus conocimientos e inténtalo de nuevo. Tu progreso se ha reiniciado para este nuevo intento.")
-                    
-                    # Lógica de Duolingo: Aumentar intento y limpiar respuestas
-                    st.session_state.intento_actual += 1
-                    st.session_state.respuestas_usuario = {} # Limpiamos para el reintento
-                    # Al hacer rerun, el formulario se recargará vacío
-                    # st.rerun() # Omitimos el rerun automático para que lean el mensaje de error primero.
-
-
-# --- Fase 3: Pantalla de Éxito Final ---
-else:
-    col1, col2, col3 = st.columns([1,3,1])
-    with col2:
-        st.success("🎉 ¡FELICIDADES! 🎉")
-        st.markdown(f"### Estimado(a) **{st.session_state.usuario}**,")
-        st.markdown(f"Has completado con éxito la evaluación en tu intento número **{st.session_state.intento_actual}**.")
-        st.write("Tus resultados han sido registrados oficialmente en nuestro sistema central (Google Sheets). Ya puedes cerrar esta ventana.")
-        st.markdown("---")
-        
-        # Botón opcional para evaluar a otra persona
-        if st.button("Evaluar a otra persona (Reiniciar)", use_container_width=True):
-            # Limpiamos todo el estado
-            st.session_state.usuario = None
-            st.session_state.intento_actual = 1
-            st.session_state.aprobado = False
-            st.session_state.respuestas_usuario = {}
+    nombre = st.text_input("Ingresa tu Nombre Completo:")
+    if st.button("Empezar Evaluación"):
+        if nombre:
+            st.session_state.usuario = nombre
             st.rerun()
+        else: st.warning("Ingresa un nombre.")
+
+# --- FASE 2: EVALUACIÓN ---
+elif not st.session_state.aprobado:
+    col_a, col_b = st.columns(2)
+    col_a.write(f"👤 **Usuario:** {st.session_state.usuario}")
+    col_b.write(f"🔄 **Intento:** {st.session_state.intento_actual}")
+    
+    # Barra de progreso dinámica
+    respondidas = len([v for v in st.session_state.respuestas_usuario.values() if v is not None])
+    st.progress(respondidas / 10)
+
+    with st.form("test"):
+        for p in preguntas_reales:
+            st.write(f"### Pregunta {p['id']}")
+            # Pista interactiva
+            with st.expander("💡 Ver pista"):
+                st.info(p['pista'])
+            
+            st.session_state.respuestas_usuario[f"p{p['id']}"] = st.radio(
+                p['pregunta'], p['opciones'], index=None, key=f"r{p['id']}", label_visibility="collapsed"
+            )
+            st.markdown("---")
+
+        if st.form_submit_button("Enviar Resultados", use_container_width=True):
+            puntaje = sum(1 for p in preguntas_reales if st.session_state.respuestas_usuario.get(f"p{p['id']}") == p['correcta'])
+            
+            if puntaje == 10:
+                if guardar_en_nube(st.session_state.usuario, puntaje, st.session_state.intento_actual):
+                    st.session_state.aprobado = True
+                    st.balloons()
+                    st.rerun()
+            else:
+                st.error(f"Puntaje: {puntaje}/10. ¡Debes obtener 10/10 para aprobar! Inténtalo de nuevo.")
+                st.session_state.intento_actual += 1
+
+# --- FASE 3: ÉXITO ---
+else:
+    st.success(f"¡Excelente, {st.session_state.usuario}! Has aprobado.")
+    st.write("Tus datos se guardaron en el Excel de la nube.")
+    if st.button("Nueva Evaluación"):
+        st.session_state.usuario = None
+        st.session_state.aprobado = False
+        st.session_state.respuestas_usuario = {}
+        st.session_state.intento_actual = 1
+        st.rerun()
