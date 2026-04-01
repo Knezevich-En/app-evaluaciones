@@ -3,3 +3,4 @@ pandas
 st-gsheets-connection
 google-generativeai
 PyPDF2
+python-pptx
