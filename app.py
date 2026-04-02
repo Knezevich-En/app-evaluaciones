@@ -18,7 +18,7 @@ st.markdown("""
         color: white;
     }
     
-    /* Contenedor tipo Tarjeta (Pantalla Completa y Centrada) */
+    /* Contenedor tipo Tarjeta */
     .main-card {
         background-color: #162B46;
         border-radius: 20px;
@@ -167,7 +167,6 @@ if st.session_state.perfil is None:
     st.write("Bienvenido al módulo de certificación en Mantenimiento Autónomo y 5S.")
     st.divider()
     
-    # Los 3 campos exactos que solicitaste
     n = st.text_input("Nombre Completo")
     c = st.text_input("Correo Electrónico")
     t = st.text_input("Teléfono")
@@ -187,7 +186,6 @@ elif st.session_state.indice < len(st.session_state.lista_preguntas):
     idx = st.session_state.indice
     p = lista[idx]
     
-    # BARRA SUPERIOR DE PROGRESO Y PUNTAJE
     col_logo, col_info, col_prog = st.columns([1, 2, 2])
     with col_logo:
         st.subheader("⚙️ WAVIN")
@@ -200,7 +198,6 @@ elif st.session_state.indice < len(st.session_state.lista_preguntas):
 
     st.divider()
 
-    # CUERPO CENTRAL DE LA PREGUNTA
     st.markdown('<div class="main-card">', unsafe_allow_html=True)
     st.caption(p["sub"])
     st.title(p["pregunta"])
@@ -220,7 +217,6 @@ elif st.session_state.indice < len(st.session_state.lista_preguntas):
                     st.session_state.puntaje += 10
                 st.rerun()
     else:
-        # Retroalimentación
         if res == p["correcta"]:
             st.success("✅ ¡CORRECTO! +10 Puntos.")
         else:
@@ -235,7 +231,7 @@ elif st.session_state.indice < len(st.session_state.lista_preguntas):
             
     st.markdown('</div>', unsafe_allow_html=True)
 
-# 3. FINALIZACIÓN Y GUARDADO EN GOOGLE SHEETS
+# 3. FINALIZACIÓN Y GUARDADO A PRUEBA DE BALAS EN GOOGLE SHEETS
 else:
     st.markdown('<div class="main-card" style="text-align: center;">', unsafe_allow_html=True)
     st.title("📊 Resultados de la Certificación")
@@ -256,30 +252,39 @@ else:
     col_btn1, col_btn2 = st.columns(2)
     
     with col_btn1:
-        # Botón para GUARDAR en Sheets
         if st.button("💾 Guardar Resultados en Excel"):
             with st.spinner("Guardando en Google Sheets..."):
                 try:
                     conn = st.connection("gsheets", type=GSheetsConnection)
                     df_existente = conn.read()
                     
-                    # Zona horaria de Ecuador
                     tz_ecuador = pytz.timezone('America/Guayaquil')
                     fecha_actual = datetime.now(tz_ecuador).strftime("%Y-%m-%d %H:%M:%S")
                     
-                    # Datos exactos a guardar
-                    nuevo_registro = pd.DataFrame([{
-                        "Nombre": st.session_state.perfil['n'],
-                        "Correo": st.session_state.perfil['c'],
-                        "Telefono": st.session_state.perfil['t'],
-                        "Intento": st.session_state.intento_actual,
-                        "Puntaje": score,
-                        "Fecha": fecha_actual
-                    }])
-                    
+                    # LOGICA A PRUEBA DE BALAS PARA COLUMNAS
                     if not df_existente.empty:
+                        # Extraemos los nombres exactos de tus columnas desde tu propio Excel
+                        cols = df_existente.columns.tolist()
+                        
+                        nuevo_registro = pd.DataFrame([{
+                            cols[0]: st.session_state.perfil['n'], # Nombre
+                            cols[1]: st.session_state.perfil['c'], # Correo
+                            cols[2]: st.session_state.perfil['t'], # Telefono (tal cual esté escrito en tu excel)
+                            cols[3]: st.session_state.intento_actual, # Intento
+                            cols[4]: score, # Puntaje
+                            cols[5]: fecha_actual # Fecha
+                        }])
                         df_actualizado = pd.concat([df_existente, nuevo_registro], ignore_index=True)
                     else:
+                        # Si la hoja está totalmente vacía, las crea por defecto
+                        nuevo_registro = pd.DataFrame([{
+                            "Nombre": st.session_state.perfil['n'],
+                            "Correo": st.session_state.perfil['c'],
+                            "Telefono": st.session_state.perfil['t'],
+                            "Intento": st.session_state.intento_actual,
+                            "Puntaje": score,
+                            "Fecha": fecha_actual
+                        }])
                         df_actualizado = nuevo_registro
                         
                     conn.update(data=df_actualizado)
@@ -287,10 +292,8 @@ else:
                     
                 except Exception as e:
                     st.error(f"❌ Error al guardar: {e}")
-                    st.info("Revisa tu archivo secrets.toml y los permisos del Google Sheet.")
                     
     with col_btn2:
-        # Botón para REINTENTAR o SALIR
         if score >= 80:
             if st.button("Salir del Sistema"):
                 st.session_state.perfil = None
@@ -304,7 +307,7 @@ else:
                 st.session_state.indice = 0
                 st.session_state.puntaje = 0
                 st.session_state.respondido = False
-                st.session_state.intento_actual += 1 # Suma un intento
+                st.session_state.intento_actual += 1 
                 st.rerun()
                 
     st.markdown('</div>', unsafe_allow_html=True)
