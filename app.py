@@ -1,11 +1,10 @@
 import streamlit as st
-import pandas as pd
 import time
 
 # ==========================================
-# 🎨 DISEÑO DE INTERFAZ ESTILO DASHBOARD
+# 🎨 DISEÑO DE INTERFAZ ESTILO DASHBOARD (SCADA)
 # ==========================================
-st.set_page_config(page_title="WAVIN - Mantenimiento Autónomo", page_icon="⚙️", layout="wide")
+st.set_page_config(page_title="WAVIN - Evaluación MA", page_icon="⚙️", layout="wide")
 
 st.markdown("""
     <style>
@@ -24,7 +23,7 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
 
-    /* Burbuja del Avatar / Pista */
+    /* Burbuja del Supervisor */
     .avatar-bubble {
         background-color: #0EA5E9;
         border-radius: 15px;
@@ -50,7 +49,7 @@ st.markdown("""
         background-color: #254166;
     }
 
-    /* Botón Siguiente */
+    /* Botón Acción */
     .stButton > button {
         background: linear-gradient(90deg, #00C2FF, #0075FF);
         color: white;
@@ -59,6 +58,7 @@ st.markdown("""
         padding: 10px 40px;
         font-weight: bold;
         transition: 0.3s;
+        width: 100%;
     }
     .stButton > button:hover {
         box-shadow: 0 0 15px #00C2FF;
@@ -68,33 +68,147 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 📚 BANCO DE PREGUNTAS
+# 📚 BANCO DE PREGUNTAS (10 Preguntas x 10 Pts = 100 Pts)
 # ==========================================
 if 'lista_preguntas' not in st.session_state:
     st.session_state.lista_preguntas = [
         {
-            "id": 1, 
-            "sub": "3. SEGURIDAD — LOTO", 
-            "pregunta": "LOTO: Lock Out / Tag Out", 
-            "texto": "Procedimiento obligatorio para aislar energías peligrosas antes de realizar mantenimiento.", 
-            "opciones": ["Aislar todas las fuentes eléctricas antes de iniciar", "Dejar la llave puesta", "Operar sin etiquetas"], 
-            "correcta": "Aislar todas las fuentes eléctricas antes de iniciar", 
-            "pista": "¡Seguridad Primero! El LOTO exige el bloqueo TOTAL de energías."
+            "id": 1, "sub": "MÓDULO: CULTURA 5S - SEIRI", 
+            "pregunta": "Clasificación en la línea de producción", 
+            "texto": "Encuentras 5 herramientas en el tablero de tu máquina, pero para el cambio de formato diario solo usas 2. ¿Qué debes hacer según el primer paso de las 5S?", 
+            "opciones": [
+                "Fabricar un tablero más grande para que quepan todas.", 
+                "Identificar las 3 herramientas innecesarias, marcarlas con tarjeta roja y retirarlas.", 
+                "Limpiarlas todas los días para que se vean bien.",
+                "Escribir un manual para usar las 5 herramientas."
+            ], 
+            "correcta": "Identificar las 3 herramientas innecesarias, marcarlas con tarjeta roja y retirarlas.", 
+            "pista": "El primer paso (Seiri) exige separar lo necesario de lo innecesario en el área de trabajo."
         },
         {
-            "id": 2, 
-            "sub": "1. LIMPIEZA — EPP", 
-            "pregunta": "Equipo de Protección Personal", 
-            "texto": "Al realizar limpieza inicial en la extrusora, ¿cuál es el EPP indispensable?", 
-            "opciones": ["Guantes de nitrilo y gafas", "Ropa de calle", "Solo casco"], 
-            "correcta": "Guantes de nitrilo y gafas", 
-            "pista": "Protege tus manos y ojos de residuos industriales."
+            "id": 2, "sub": "MÓDULO: PASO 1 - LIMPIEZA INICIAL", 
+            "pregunta": "Detección con los 5 Sentidos", 
+            "texto": "Al limpiar el panel de control, detectas un olor a cable quemado pero no ves humo. No eres electricista. ¿Qué dicta el Paso 1 de Mantenimiento Autónomo?", 
+            "opciones": [
+                "Ignorar el olor si la máquina sigue encendida.", 
+                "Abrir el panel eléctrico para intentar arreglarlo tú mismo.", 
+                "Colocar una etiqueta de anormalidad y reportarlo al técnico de mantenimiento.",
+                "Traer un ventilador para disipar el olor."
+            ], 
+            "correcta": "Colocar una etiqueta de anormalidad y reportarlo al técnico de mantenimiento.", 
+            "pista": "La limpieza es inspección. Si usas tus sentidos y detectas algo anormal que no puedes arreglar, debes evidenciarlo con una tarjeta."
+        },
+        {
+            "id": 3, "sub": "MÓDULO: PASO 2 - CONTRAMEDIDAS", 
+            "pregunta": "Fuga de fluidos", 
+            "texto": "Una tubería gotea aceite sobre un sensor óptico. Según la jerarquía de contramedidas, ¿cuál es la solución definitiva (Nivel 1)?", 
+            "opciones": [
+                "Fabricar una cubierta acrílica para tapar el sensor (Proteger).", 
+                "Poner una bandeja para que caiga el aceite (Contener).", 
+                "Cambiar el empaque dañado de la tubería para que deje de fugar (Eliminar fuente).",
+                "Limpiar el sensor cada 10 minutos."
+            ], 
+            "correcta": "Cambiar el empaque dañado de la tubería para que deje de fugar (Eliminar fuente).", 
+            "pista": "La mejor forma de lidiar con la contaminación es eliminarla de raíz, no solo contenerla o limpiarla."
+        },
+        {
+            "id": 4, "sub": "MÓDULO: MANTENIMIENTO AUTÓNOMO", 
+            "pregunta": "Cambio de Paradigma", 
+            "texto": "¿Cuál de las siguientes frases representa la verdadera filosofía del operador en el Mantenimiento Autónomo?", 
+            "opciones": [
+                "Yo opero la máquina, tú la arreglas.", 
+                "El mantenimiento es responsabilidad exclusiva de los mecánicos.", 
+                "Yo opero y yo cuido mi máquina.",
+                "Producir al máximo sin importar el estado del equipo."
+            ], 
+            "correcta": "Yo opero y yo cuido mi máquina.", 
+            "pista": "El MA busca empoderar al operador para que sea el primer guardián del estado de su equipo."
+        },
+        {
+            "id": 5, "sub": "MÓDULO: CULTURA 5S - SEITON", 
+            "pregunta": "Orden y Gestión Visual", 
+            "texto": "Pierdes 5 minutos cada turno buscando la llave de purga de la extrusora. ¿Qué acción de la fase Seiton (Ordenar) debes aplicar?", 
+            "opciones": [
+                "Comprar más llaves para tener en todos lados.", 
+                "Crear un tablero de sombras delimitado para que la llave tenga un lugar específico y visible.", 
+                "Esconder la llave en tu casillero para que nadie la tome.",
+                "Multar a los compañeros que no devuelvan la llave."
+            ], 
+            "correcta": "Crear un tablero de sombras delimitado para que la llave tenga un lugar específico y visible.", 
+            "pista": "Un lugar para cada cosa, y cada cosa en su lugar. La gestión visual elimina el tiempo de búsqueda."
+        },
+        {
+            "id": 6, "sub": "MÓDULO: PASO 2 - ZONAS DE DIFÍCIL ACCESO", 
+            "pregunta": "Lubricación Segura", 
+            "texto": "Para lubricar un rodamiento, tienes que subirte a una escalera y estirar el brazo peligrosamente. ¿Qué contramedida se debe tomar?", 
+            "opciones": [
+                "Hacerlo con mucho cuidado y usar arnés siempre.", 
+                "Dejar de lubricarlo para evitar accidentes.", 
+                "Modificar el equipo instalando una manguera de extensión para lubricar desde el piso.",
+                "Pedirle a un operador más alto que lo haga."
+            ], 
+            "correcta": "Modificar el equipo instalando una manguera de extensión para lubricar desde el piso.", 
+            "pista": "Las zonas de difícil acceso (para limpieza, inspección o lubricación) deben ser rediseñadas para facilitar el trabajo del operador."
+        },
+        {
+            "id": 7, "sub": "MÓDULO: SEGURIDAD - LOTO", 
+            "pregunta": "Aislamiento de Energías", 
+            "texto": "Debes realizar la limpieza interna de la tolva mezcladora. ¿Cuál es el paso OBLIGATORIO antes de ingresar cualquier parte de tu cuerpo?", 
+            "opciones": [
+                "Gritarle a los compañeros que no enciendan la máquina.", 
+                "Solo presionar el botón de Paro de Emergencia.", 
+                "Aplicar procedimiento LOTO: Bajar el breaker eléctrico y colocar tu candado personal.",
+                "Hacerlo muy rápido antes de que alguien llegue."
+            ], 
+            "correcta": "Aplicar procedimiento LOTO: Bajar el breaker eléctrico y colocar tu candado personal.", 
+            "pista": "Los botones de emergencia no aíslan la energía. Solo un candado físico garantiza que el equipo no arrancará accidentalmente."
+        },
+        {
+            "id": 8, "sub": "MÓDULO: ANÁLISIS 5W1H", 
+            "pregunta": "Definición del Problema", 
+            "texto": "Ves un charco de agua en el suelo. Antes de buscar soluciones, aplicas 5W1H. ¿Para qué sirve esta herramienta?", 
+            "opciones": [
+                "Para castigar al culpable de derramar el agua.", 
+                "Para documentar el hallazgo de forma objetiva (Qué, Dónde, Cuándo, etc.) y no saltar a conclusiones apresuradas.", 
+                "Para limpiar el agua más rápido.",
+                "Para medir el volumen exacto de agua."
+            ], 
+            "correcta": "Para documentar el hallazgo de forma objetiva (Qué, Dónde, Cuándo, etc.) y no saltar a conclusiones apresuradas.", 
+            "pista": "Para encontrar la causa raíz verdadera de una anomalía, primero debes describir el fenómeno con exactitud."
+        },
+        {
+            "id": 9, "sub": "MÓDULO: PASO 1 - ESTÁNDARES", 
+            "pregunta": "Elaboración de Rutinas", 
+            "texto": "Una vez que la máquina quedó como nueva tras la limpieza inicial, ¿qué documento debe crearse para evitar que vuelva a ensuciarse?", 
+            "opciones": [
+                "Un reporte de horas extras.", 
+                "Un Estándar Preliminar de Limpieza que defina Qué, Cómo, Quién y Cuándo limpiar.", 
+                "Un memorándum a toda la planta.",
+                "Una gráfica de Pareto."
+            ], 
+            "correcta": "Un Estándar Preliminar de Limpieza que defina Qué, Cómo, Quién y Cuándo limpiar.", 
+            "pista": "De nada sirve limpiar si no se estandariza una rutina para mantener esa condición en el tiempo."
+        },
+        {
+            "id": 10, "sub": "MÓDULO: CULTURA 5S - SHITSUKE", 
+            "pregunta": "Disciplina y Hábito", 
+            "texto": "Han pasado tres meses desde que se implementaron las 5S, pero el área empieza a verse desordenada de nuevo. ¿Qué falló?", 
+            "opciones": [
+                "Faltó el quinto paso (Disciplina/Sostener): No se hicieron auditorías ni se mantuvo el hábito.", 
+                "Las herramientas se reprodujeron solas.", 
+                "Faltó comprar más estantes.",
+                "El gerente de planta no barrió el área."
+            ], 
+            "correcta": "Faltó el quinto paso (Disciplina/Sostener): No se hicieron auditorías ni se mantuvo el hábito.", 
+            "pista": "Las 5S no son un evento de limpieza de un día, sino un cambio cultural que requiere disciplina constante para sostenerse."
         }
     ]
 
 # Inicializar estados
 if 'indice' not in st.session_state: st.session_state.indice = 0
+if 'puntaje' not in st.session_state: st.session_state.puntaje = 0
 if 'perfil' not in st.session_state: st.session_state.perfil = None
+if 'respondido' not in st.session_state: st.session_state.respondido = False
 
 # ==========================================
 # 🖥️ LÓGICA DE NAVEGACIÓN
@@ -102,21 +216,22 @@ if 'perfil' not in st.session_state: st.session_state.perfil = None
 
 # 1. PANTALLA DE REGISTRO
 if st.session_state.perfil is None:
-    st.title("⚙️ Sistema de Control de Capacitación WAVIN")
+    st.title("⚙️ Sistema de Evaluación Técnica WAVIN")
     st.markdown('<div class="main-card">', unsafe_allow_html=True)
+    st.write("Bienvenido al módulo de certificación en Mantenimiento Autónomo y 5S.")
     col1, col2 = st.columns(2)
     with col1:
-        n = st.text_input("Nombre y Apellido")
-        e = st.text_input("Correo Institucional")
+        n = st.text_input("Nombre y Apellido del Operador")
+        e = st.text_input("Área / Departamento")
     with col2:
-        t = st.text_input("Teléfono / Extensión")
+        t = st.text_input("ID de Empleado")
         
-    if st.button("INGRESAR AL SISTEMA"):
+    if st.button("INICIAR EVALUACIÓN (100 Puntos)"):
         if n and e and t:
             st.session_state.perfil = {"n":n, "e":e, "t":t}
             st.rerun()
         else:
-            st.warning("⚠️ Por favor complete todos los campos.")
+            st.warning("⚠️ Por favor complete todos los datos de acceso.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # 2. INTERFAZ DE EVALUACIÓN
@@ -127,15 +242,16 @@ else:
     if idx < len(lista):
         p = lista[idx]
         
-        # BARRA SUPERIOR DE PROGRESO
+        # BARRA SUPERIOR DE PROGRESO Y PUNTAJE
         col_logo, col_info, col_prog = st.columns([1, 2, 2])
         with col_logo:
             st.subheader("⚙️ WAVIN")
         with col_info:
-            st.write(f"**Usuario:** {st.session_state.perfil['n']}")
+            st.write(f"**Operador:** {st.session_state.perfil['n']}")
+            st.write(f"**Puntaje Actual:** {st.session_state.puntaje} / 100")
         with col_prog:
-            st.write(f"Progreso: {idx + 1}/{len(lista)}")
-            st.progress((idx + 1) / len(lista))
+            st.write(f"Pregunta: {idx + 1} de {len(lista)}")
+            st.progress((idx) / len(lista))
 
         st.divider()
 
@@ -143,9 +259,9 @@ else:
         col_side, col_main = st.columns([1, 2])
         
         with col_side:
-            st.markdown(f'<div class="avatar-bubble"><b>Nota del Supervisor:</b><br>{p["pista"]}</div>', unsafe_allow_html=True)
-            # Imagen estática del operador industrial (la que generamos)
-            st.image("https://i.imgur.com/8pMvYmX.png", caption="Supervisor de Planta", use_container_width=True) 
+            st.markdown(f'<div class="avatar-bubble"><b>Tutor de Planta:</b><br>Lee con atención el escenario práctico. Tienes una sola oportunidad por pregunta.</div>', unsafe_allow_html=True)
+            # Imagen estática del operador industrial
+            st.image("https://i.imgur.com/8pMvYmX.png", caption="Supervisor Virtual", use_container_width=True) 
 
         with col_main:
             st.markdown('<div class="main-card">', unsafe_allow_html=True)
@@ -153,28 +269,55 @@ else:
             st.title(p["pregunta"])
             st.write(f"#### {p['texto']}")
             
-            res = st.radio("Seleccione la respuesta correcta:", p["opciones"], index=None, key=f"q_{idx}")
+            # Bloquear opciones si ya respondió
+            res = st.radio("Seleccione su acción en este escenario:", p["opciones"], index=None, key=f"q_{idx}", disabled=st.session_state.respondido)
             
-            if st.button("Siguiente ▶️"):
+            if not st.session_state.respondido:
+                if st.button("Confirmar Respuesta"):
+                    if res is None:
+                        st.warning("Seleccione una opción para evaluar el escenario.")
+                    else:
+                        st.session_state.respondido = True
+                        if res == p["correcta"]:
+                            st.session_state.puntaje += 10
+                        st.rerun()
+            else:
+                # Mostrar retroalimentación
                 if res == p["correcta"]:
-                    st.success("✅ RESPUESTA CORRECTA")
-                    time.sleep(1.2)
+                    st.success("✅ ¡CORRECTO! +10 Puntos.")
+                else:
+                    st.error(f"❌ INCORRECTO. \n\n**Justificación Técnica:** {p['pista']}")
+                
+                if st.button("Siguiente Escenario ▶️"):
+                    st.session_state.respondido = False
                     st.session_state.indice += 1
                     st.rerun()
-                elif res is None:
-                    st.warning("Seleccione una opción antes de continuar.")
-                else:
-                    st.error("❌ FALLO DE SEGURIDAD. Revisa la pista del supervisor.")
+                    
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # 3. FINALIZACIÓN
+    # 3. FINALIZACIÓN Y TABLERO DE RESULTADOS
     else:
-        st.balloons()
         st.markdown('<div class="main-card" style="text-align: center;">', unsafe_allow_html=True)
-        st.title("¡Capacitación Completada!")
-        st.write(f"Felicidades **{st.session_state.perfil['n']}**, has superado el módulo de Mantenimiento Autónomo.")
-        if st.button("Finalizar y Salir"):
+        st.title("📊 Resultados de la Certificación")
+        st.divider()
+        st.write(f"### Operador: {st.session_state.perfil['n']}")
+        
+        score = st.session_state.puntaje
+        st.markdown(f"<h1 style='font-size: 80px; color: {'#00C2FF' if score >= 80 else '#FF4B4B'};'>{score} / 100</h1>", unsafe_allow_html=True)
+        
+        if score >= 80:
+            st.balloons()
+            st.success("🏆 ¡EXCELENTE! Has aprobado satisfactoriamente los conceptos de Mantenimiento Autónomo aplicados a la industria.")
+        elif score >= 60:
+            st.warning("⚠️ APROBADO CON OBSERVACIONES. Tienes las bases, pero debes repasar los manuales de planta.")
+        else:
+            st.error("❌ REPROBADO. El conocimiento de seguridad y mantenimiento es crítico. Debes repetir la capacitación.")
+
+        st.divider()
+        if st.button("Finalizar Sesión e Ir al Inicio"):
             st.session_state.perfil = None
             st.session_state.indice = 0
+            st.session_state.puntaje = 0
+            st.session_state.respondido = False
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
